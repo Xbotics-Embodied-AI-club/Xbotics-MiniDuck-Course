@@ -1,0 +1,18 @@
+video {
+    width: 100%;
+    border-radius: 6px;
+    background: #000;
+}
+
+.video-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+@media (max-width: 640px) {
+    .video-row {
+        grid-template-columns: 1fr;
+    }
+}
