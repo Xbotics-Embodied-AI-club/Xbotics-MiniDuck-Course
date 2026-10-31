@@ -39,4 +39,3 @@ uv run python training/run_policy_viewer.py --skill velstand-flat   # 在仿真�
 作者：锟酱 · Xbotics 具身智能社区。机器人的结构模型与训练任务来自 [Pollen Robotics 的 microduck_rl](https://github.com/pollen-robotics/microduck_rl)，
 我们换了电池与电路板，按实称修正了质量，并换用飞特 HD-1910 舵机。
 
-代码使用 Apache-2.0；3D 模型与手册使用 CC BY-NC-SA 4.0，不得用于商业目的。详见 [LICENSE-MODELS.md](LICENSE-MODELS.md)。
