@@ -2,6 +2,15 @@
 
 版本号是发布日期加当天序号。每个版本在 [Releases](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases) 有同名发布，发布后不再改动。
 
+## v20261031.02
+
+加入 JupyterLab 与 matplotlib，用来在 notebook 里动手。硬件版本、固件、策略都不变。
+
+**你要做什么**
+
+- 电脑：`git pull` 后运行 `uv sync`。
+- 鸭子：不用动。
+
 ## v20261031.01
 
 初始版本。
