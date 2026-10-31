@@ -1,0 +1,29 @@
+# 当前版本的唯一声明。教程站的版本信息从这里读。
+
+[course]
+version = "v20261031.01"
+
+[hardware]
+id = "2026-10-24-hd1910"
+servo = "飞特 HD-1910"
+servo_key = "feetech/hd1910"
+board = "V0.2 头板 + 身体板"
+mass_kg = 0.779
+
+[firmware]
+version = "0.8.1"
+release = "v20261031.01"
+file = "miniduck-firmware-0.8.1.zip"
+sha256 = "26a34ac980e30c6f3cfeae5b243639920e6dd313ae47ecfa6c8245bec4770a20"
+
+[flash_tool]
+name = "乐鑫 Flash 下载工具"
+version = "3.9.11"
+release = "v20261031.01"
+file = "flash_download_tool_3.9.11.zip"
+sha256 = "c1fbf280aa04cd8fbe725bff74360fb0a7c83fbd49afcaf37f6c14a6575ea9bc"
+
+[policies]
+"standup" = "75754097c379f81bde817ea867e24e2cc417843fb8e934ecfc4f89212af90e9a"
+"velstand-flat" = "e6a00354d7655af14b5ca6c461dbcd9cb6326c23092a36fc7568d1350d989e32"
+"sitstand" = "6ebc4d32cec6c70597b4fc4341710267c41293ae376583ce2235761f9198aad0"

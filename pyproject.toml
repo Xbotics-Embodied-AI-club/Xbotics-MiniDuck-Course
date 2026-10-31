@@ -1,0 +1,51 @@
+# 小鸭子 MiniDuck 的仿真与训练环境。在本目录运行 uv sync 就装好全部依赖。
+#
+# 任务配置、奖励、域随机化、BAM 舵机模型来自 pollen 的 microduck_rl，钉在一个具体 commit 上原样使用；
+# 机器人模型用本仓 sim_model/ 里我们这版硬件的，训练器在 training/。
+[project]
+name = "xbotics-miniduck-course"
+version = "0.1.0"
+description = "小鸭子带你学强化学习：MiniDuck 的仿真模型、训练代码、策略与电脑端工具"
+# <3.13：上游 microduck_rl 经 bam 钉了 requires-python <3.13，跟着它走。
+requires-python = ">=3.12, <3.13"
+dependencies = [
+    # 任务配置、BAM 执行器、域随机化的来源。机器人模型用本仓 sim_model/ 里的（换法见 training/env.py）。
+    "mjlab-microduck",
+    # 物理引擎钉到上游 uv.lock 的版本：模型编译与上游训练用同一个引擎。写成约束而不是 override，与 mujoco-warp 保持兼容。
+    "mujoco==3.10.0",
+    # 训练器：Dataset -> DataModule -> LightningModule -> trainer.fit
+    "lightning",
+    "wandb",
+    "numpy",
+    # 评测录像
+    "mediapy",
+    # mjlab 按 TensorDict 返回观测组；它也是 mjlab 的传递依赖，但传递依赖不是声明。
+    "tensordict",
+    # 导出：ONNX 图 + 元数据，以及用 onnxruntime 回读校验。
+    "onnx",
+    "onnxruntime",
+    # 电脑端工具（firmware/tools/assets.py）：音频转换、上传到机器人。
+    "requests",
+    "soundfile",
+    "soxr",
+]
+
+[tool.uv]
+package = false
+# 下面四条与上游 microduck_rl 的 pyproject 一致 —— uv 只认「工作区根」的 override，
+# 上游作为依赖时它自己那份被忽略，所以必须在这里重述。
+override-dependencies = [
+    # bam 钉 protobuf<4.0（给它的 zmq 消息用，我们不用），
+    # 不放开会连锁把 onnx 压到一个没有 wheel 的版本。
+    "protobuf>=4.0,<7.0",
+    "onnx>=1.20.1",
+    # bam 依赖 PyPI 上的占位包 zmq==0.0.0，它的 wheel 是坏的；我们只用 bam.mjlab，丢掉它。
+    "zmq ; python_version < '3.0'",
+    # BAM 钉到上游 uv.lock 里那个 commit（分支 mjlab_frictionloss 上）。
+    # 走 override 而不是 sources：BAM 是传递依赖，sources 只作用于直接依赖。
+    "better-actuator-models @ git+https://github.com/Rhoban/bam.git@62bd8ce12154340be97e06f7f41a0ca8f116d967",
+]
+
+[tool.uv.sources]
+# 钉具体 commit：上游 develop @ 2026-10-09，走路任务与 PPO 配置取自这一版。
+mjlab-microduck = { git = "https://github.com/pollen-robotics/microduck_rl", rev = "ceca01706143d729305baa94cbd8ab990979e325" }

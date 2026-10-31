@@ -1,0 +1,19 @@
+{
+  "id": "2026-10-24-hd1910",
+  "description": "V0.2 头板 + 体板，飞特 HD-1910，分段质量按实称微调（整机 779 g），体板降压 6 V 供舵机",
+  "structure": "2026-10-24",
+  "servo": "feetech/hd1910",
+  "supply": {
+    "vin_range_v": [
+      5.9,
+      6.1
+    ],
+    "load_sag_v_per_nm": null,
+    "sag_floor_v": null
+  },
+  "provenance": {
+    "structure": "分段质量按实称：11 号舵机以上一组 288 g，躯干 209 g，整机 0.779 kg；舵机按 21 g 计",
+    "supply": "V0.2 身体板的 7.4→6 V 降压给舵机供电，板上实测 6.0 V",
+    "valid_from": "2026-10-24"
+  }
+}
