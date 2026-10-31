@@ -24,13 +24,11 @@ MiniDuck 是一台高约 25 厘米、质量约 0.78 千克的双足机器人，�
 
 代码、仿真模型和策略都在 [GitHub 仓库](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course)。
 
-## 署名与许可
+## 署名
 
 作者：锟酱 · Xbotics 具身智能社区。
 
 机器人的结构模型来自 [Pollen Robotics 的 microduck_rl](https://github.com/pollen-robotics/microduck_rl)。我们换了电池与电路板，按实称修正了质量，并换用飞特 HD-1910 舵机。
-
-代码使用 Apache-2.0；3D 模型与本手册使用 CC BY-NC-SA 4.0，不得用于商业目的。详见 [LICENSE-MODELS.md](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/blob/main/LICENSE-MODELS.md)。
 
 ```{toctree}
 :hidden:
