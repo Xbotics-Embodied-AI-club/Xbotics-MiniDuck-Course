@@ -1,4 +1,4 @@
-"""Lightweight native MuJoCo viewer for exported MiniDuck ONNX policies.
+"""Lightweight native MuJoCo viewer for MiniDuck policies (ONNX or the on-board .mdp file).
 
 Windows PowerShell examples, from the repository root:
     uv run python training/run_policy_viewer.py --skill velstand-flat
@@ -29,8 +29,12 @@ from bam.mujoco import MujocoController
 
 import hardware
 from hardware import Hardware
+from int8 import policy_from_mdp
 from logs import run_cli
-from paths import POLICY_DIR
+from paths import POLICY_DIR, REPO_ROOT
+
+sys.path.insert(0, str(REPO_ROOT / "firmware/tools"))
+from assets import POLICY_HEADER_BYTES, read_policy_blob  # noqa: E402
 
 DEFAULT_HARDWARE = "2026-10-24-hd1910"
 CONTROL_HZ = 50
@@ -202,9 +206,37 @@ class Policy:
         return self.session.run(["actions"], {"obs": batch})[0][0]
 
 
+class MdpPolicy:
+    """传给机器人的那份 .mdp 在 CPU 上跑 int8 前向；关节顺序与默认姿态读同目录的 MANIFEST.json。"""
+
+    def __init__(self, path: Path):
+        blob = path.read_bytes()
+        info = read_policy_blob(blob)
+        self.int8, _test_obs, _test_out_q = policy_from_mdp(info, blob[POLICY_HEADER_BYTES:])
+        manifest = json.loads((path.parent / "MANIFEST.json").read_text(encoding="utf-8"))
+        onnx_metadata = manifest["onnx"]["metadata"]
+        self.metadata = {"robot_xml_sha256": manifest["robot_xml_sha256"]}
+        self.skill = info["slot"]
+        self.hardware = info["hardware"]
+        self.joint_names = onnx_metadata["joint_names"]
+        self.action_scale = float(onnx_metadata["action_scale"])
+        self.default_pose = np.asarray(onnx_metadata["default_joint_pos"], dtype=np.float64)
+
+    def infer(self, observation: np.ndarray) -> np.ndarray:
+        return self.int8.forward(observation[None, :])[0]
+
+
+def load_policy(path: Path) -> Policy | MdpPolicy:
+    return MdpPolicy(path) if path.suffix == ".mdp" else Policy(path)
+
+
 def resolve_policy_path(skill: str, hw: Hardware, requested: Path | None) -> Path:
     if requested is None:
-        path = POLICY_DIR / hw.id / skill / f"{skill.replace('-', '_')}.onnx"
+        # 刚导出的 ONNX 优先；只有出厂 .mdp 时用 .mdp。
+        policy_dir = POLICY_DIR / hw.id / skill
+        path = policy_dir / f"{skill.replace('-', '_')}.onnx"
+        if not path.is_file():
+            path = policy_dir / f"{skill}.mdp"
     else:
         path = requested.expanduser().resolve()
     if not path.is_file():
@@ -365,8 +397,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skill", choices=tuple(SKILL_SCENES), default="velstand-flat")
     parser.add_argument("--hardware", choices=hardware.known(), default=DEFAULT_HARDWARE)
-    parser.add_argument("--policy", type=Path, help="ONNX 路径；默认按硬件和技能查找")
-    parser.add_argument("--standing", type=Path, help="可选 standup ONNX，低速时自动切换")
+    parser.add_argument("--policy", type=Path, help="ONNX 或 .mdp 路径；默认按硬件和技能查找")
+    parser.add_argument("--standing", type=Path, help="可选 standup 策略（ONNX 或 .mdp），低速时自动切换")
     parser.add_argument("--stand-threshold", type=float, default=0.05)
     parser.add_argument("--vx", type=float, default=None)
     parser.add_argument("--vy", type=float, default=0.0)
@@ -379,7 +411,7 @@ def main():
 
     hw = hardware.load(args.hardware)
     policy_path = resolve_policy_path(args.skill, hw, args.policy)
-    policy = Policy(policy_path)
+    policy = load_policy(policy_path)
     if policy.skill and policy.skill != args.skill:
         parser.error(f"策略技能是 {policy.skill}，当前选择 {args.skill}")
     if policy.hardware and policy.hardware != hw.id:
@@ -390,7 +422,7 @@ def main():
         actual_xml_hash = hashlib.sha256(xml_path.read_bytes()).hexdigest()
         if actual_xml_hash != expected_xml_hash:
             log.warning("当前 MJCF 与策略训练时记录的文件不同：%s", xml_path.name)
-    standing_policy = Policy(args.standing.expanduser().resolve()) if args.standing else None
+    standing_policy = load_policy(args.standing.expanduser().resolve()) if args.standing else None
     if standing_policy:
         if standing_policy.skill and standing_policy.skill != "standup":
             parser.error("--standing 文件不是 standup 策略")
@@ -408,8 +440,8 @@ def main():
     observer = Observer(model, data, bam_model, controller, policy, standing_policy,
                         qpos_indices, qvel_indices, imu_adr, trunk_id, free_adr,
                         command, args.stand_threshold, args.start)
-    log.info("直接 MuJoCo + BAM；CPU ONNX；硬件 %s；控制 %d Hz，%d 子步",
-             hw.id, CONTROL_HZ, DECIMATION)
+    log.info("直接 MuJoCo + BAM；CPU 推理 %s；硬件 %s；控制 %d Hz，%d 子步",
+             policy_path.name, hw.id, CONTROL_HZ, DECIMATION)
 
     if args.save_csv:
         args.save_csv.parent.mkdir(parents=True, exist_ok=True)

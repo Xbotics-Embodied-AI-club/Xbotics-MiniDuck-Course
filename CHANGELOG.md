@@ -2,6 +2,15 @@
 
 版本号是发布日期加当天序号。每个版本在 [Releases](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases) 有同名发布，发布后不再改动。
 
+## v20261101.01
+
+仓库里直接放编译好的固件 `firmware/0.8.1/`，固件本身仍是 0.8.1，文件与之前的固件包逐字节相同。`policies/` 里只留传给机器人的 `.mdp` 和清单，仿真器直接跑 `.mdp`。硬件版本、策略都不变。
+
+**你要做什么**
+
+- 电脑：`git pull`，不用重新 `uv sync`。导出过自己策略的，先把 `policies/` 里改动的文件移到别处，再 `git pull`。
+- 鸭子：不用动。
+
 ## v20261031.03
 
 `uv.lock` 钉住 JupyterLab 与 matplotlib 的版本。硬件版本、固件、策略都不变。

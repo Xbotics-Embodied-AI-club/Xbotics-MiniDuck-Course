@@ -6,3 +6,7 @@ result/
 checkpoints/
 *.mp4
 training/hostcheck/build/
+# 自己训练时 export_policy.py 导出的中间文件
+policies/**/*.onnx
+policies/**/*_int8.h
+policies/**/*_int8.npz

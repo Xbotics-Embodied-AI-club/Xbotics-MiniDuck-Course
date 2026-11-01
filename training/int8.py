@@ -340,6 +340,45 @@ def load_npz(path) -> Int8Policy:
                       in_inv_scale=np.float32(data["in_inv_scale"]), layers=layers)
 
 
+def policy_from_mdp(info: dict, payload: bytes) -> tuple[Int8Policy, np.ndarray, np.ndarray]:
+    """从板上策略文件的数据区还原 int8 策略，布局见 firmware/tools/assets.py 的 `build_policy_blob`。
+
+    文件里只有整数前向要的参数：中间层的标度不在其中，填 NaN；最后一层的输出标度在文件头里。
+
+    Args:
+        info: `read_policy_blob` 读出的文件头。
+        payload: 文件头之后的数据区。
+
+    Returns:
+        (int8 策略, 文件自带测试向量的观测 (K, 61), 这些观测的 int8 输出 (K, 14))。
+    """
+    pos = 0
+
+    def take(dtype: str, count: int) -> np.ndarray:
+        nonlocal pos
+        values = np.frombuffer(payload, dtype=dtype, count=count, offset=pos)
+        pos += -(-values.nbytes // ROW_ALIGN) * ROW_ALIGN
+        return values
+
+    obs_dim, act_dim, tests = info["obs_dim"], info["act_dim"], info["num_tests"]
+    dims = take("<i4", info["num_layers"] * 4).reshape(-1, 4)
+    obs_mean, obs_inv_std = take("<f4", obs_dim), take("<f4", obs_dim)
+    layers = []
+    for i, (in_len, channels, input_offset, output_offset) in enumerate(dims.tolist()):
+        weight = take("i1", in_len * channels).reshape(channels, in_len)
+        bias, mult, shift = take("<i4", channels), take("<i4", channels), take("<i4", channels)
+        lut = take("i1", QMAX - QMIN + 1) if info["lut_mask"] >> i & 1 else None
+        layers.append(Int8Layer(weight=weight, bias=bias, mult=mult, shift=shift,
+                                in_scale=math.nan, in_zero=-input_offset,
+                                out_scale=math.nan, out_zero=output_offset, lut=lut))
+    layers[-1].out_scale = info["out_scale"]
+    test_obs = take("<f4", tests * obs_dim).reshape(tests, obs_dim)
+    test_out_q = take("i1", tests * act_dim).reshape(tests, act_dim)
+    policy = Int8Policy(obs_mean=obs_mean, obs_inv_std=obs_inv_std,
+                        in_inv_scale=np.float32(info["in_inv_scale"]), layers=layers)
+    return policy, test_obs, test_out_q
+
+
 def _c_float(value: float) -> str:
     """float32 常量的 C 写法。
 

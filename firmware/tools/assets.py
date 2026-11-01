@@ -1,6 +1,6 @@
 """MiniDuck 板上文件：把策略、叫声转成固件认的格式与文件名，经热点传到板子上（与网页「文件」页 83 口同一个接口）
 
-    uv run firmware/tools/assets.py policy policies/2026-10-24-hd1910/*                # 导出的策略 → 同目录 <模型>.mdp
+    uv run firmware/tools/assets.py policy policies/2026-10-24-hd1910/<模型>                # 导出的策略 → 同目录 <模型>.mdp
     uv run firmware/tools/assets.py audio 我的叫声.mp3 --as greet_3 [--adpcm]             # WAV/MP3/FLAC/OGG → greet_3.wav（当前目录）
     uv run firmware/tools/assets.py upload velstand-flat.mdp greet_3.wav --reboot         # 先连机器人的热点
     uv run firmware/tools/assets.py ls | rm /audio/greet_3.wav | restore | reboot | check 文件 ...
@@ -15,7 +15,7 @@
 模型 standup / velstand-flat / sitstand；叫法见 AUDIO_LABELS，变体号 0–9（播放时在已有的变体里随机挑）。
 「恢复出厂」= 删掉 /policy 与 /audio 下的全部文件、重启。
 
-格式按片上容量定（实测数在固件 README）：策略是 int8 二进制（一份 214 KB，比 ONNX 小 3.7 倍）；叫声是 16 kHz 单声道
+格式按片上容量定：策略是 int8 二进制（一份 214 KB，比 ONNX 小 3.7 倍）；叫声是 16 kHz 单声道
 WAV，16 位 PCM，或 --adpcm 的 4 位 IMA ADPCM（再小 4 倍，信噪比约 26 dB）。上传传文件原样，板子校验通过才替换。
 
 写 flash 时板子两个核一起停：舵机正被驱动时（闭环、站起来、回中检查、点动）板子拒收，先在遥控页（80 口）点「卸力」，
@@ -213,12 +213,6 @@ def convert_policy(policy_dir: Path) -> Path:
     out = policy_dir / f"{slot}{POLICY_EXT}"
     out.write_bytes(blob)
     return out
-
-
-def policy_file_is_current(mdp: Path) -> bool:
-    """这份 .mdp 是不是由同目录现在的 _int8.h 转出来的（头里记着源文件 SHA-256 的前 20 字节）。"""
-    source = _policy_source(mdp.parent).read_bytes()
-    return read_policy_blob(mdp.read_bytes())["source_sha256"] == hashlib.sha256(source).digest()[:20].hex()
 
 
 # ---------------------------------------------------------------------------------------------------------

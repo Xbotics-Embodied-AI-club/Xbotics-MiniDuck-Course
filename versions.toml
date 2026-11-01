@@ -1,7 +1,7 @@
 # 当前版本的唯一声明。教程站的版本信息从这里读。
 
 [course]
-version = "v20261031.03"
+version = "v20261101.01"
 
 [hardware]
 id = "2026-10-24-hd1910"
@@ -12,9 +12,15 @@ mass_kg = 0.779
 
 [firmware]
 version = "0.8.1"
-release = "v20261031.01"
-file = "miniduck-firmware-0.8.1.zip"
-sha256 = "26a34ac980e30c6f3cfeae5b243639920e6dd313ae47ecfa6c8245bec4770a20"
+dir = "firmware/0.8.1"
+
+[firmware.sha256]
+"0x0_bootloader.bin" = "84bb365666003b051f564d04380d0cf5d9d85c420ddafe9fc863071b49e49bfc"
+"0x10000_firmware.bin" = "f3a9aa70e0b514ae64375398777ccca9d6c71648e1ae8c91948d64e55ca4e2e8"
+"0x450000_srmodels.bin" = "2ccca44b0f1f1330ebdb7d0bc1402733dbb37b355449257f78f49be2fda2afa3"
+"0x770000_assets.bin" = "9926c5845b2fc93bc9f37ca664172e6d11ce43192013362322e25d9fb6227510"
+"0x8000_partitions.bin" = "5885e556542fc12ae24f840164ccee8a9072c89f5b4e8163ea5ed2ceac345c87"
+"0xe000_boot_app0.bin" = "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
 
 [flash_tool]
 name = "乐鑫 Flash 下载工具"

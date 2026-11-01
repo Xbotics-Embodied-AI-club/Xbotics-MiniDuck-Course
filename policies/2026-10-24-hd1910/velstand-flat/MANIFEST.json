@@ -211,9 +211,7 @@
     "battery_bracket_col": "battery_bracket_collision"
   },
   "files": {
-    "velstand_flat.onnx": "789f7545633cfe1dea706b239e7015d853af29cf2085ae9bb2ac8355a503d424",
-    "velstand_flat_int8.h": "717b33ef829f63e64402d8ee519d658eafe9f594926e5abf5b528e985491e928",
-    "velstand_flat_int8.npz": "7918c8ae435b5ea24d7437d18547b9f3efcc936990132ff2c09a3630cd03377a"
+    "velstand-flat.mdp": "e6a00354d7655af14b5ca6c461dbcd9cb6326c23092a36fc7568d1350d989e32"
   },
   "hardware": "2026-10-24-hd1910",
   "hardware_spec": {
@@ -247,7 +245,7 @@
     "weight_bytes": 198400
   },
   "iteration": 3000,
-  "mass_table_sha256": "deb81c3f948a9936a43e8de2420adb7caf9702e1ed594995b19a5b4481e061e4",
+  "mass_table_sha256": "3c0970efb5c256ddfdadcdcaac24883407bb7be565ceeecd210cd193c955e323",
   "onnx": {
     "input": "obs [1,61]",
     "max_abs_diff_vs_torch": 1.3113021850585938e-06,

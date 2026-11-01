@@ -12,7 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # 这只鸭子在仿真里的物理，按硬件版本组织（硬件版本 / 机体结构 / 电机），读法见 hardware.py。
 SIM_MODEL = REPO_ROOT / "sim_model"
-# 交付给真机的策略文件（ONNX + int8 头文件 + 清单），进 git，按硬件版本分：policies/<硬件版本>/<动作>/。
+# 交付给真机的策略文件（.mdp + 清单），进 git，按硬件版本分：policies/<硬件版本>/<动作>/。
 POLICY_DIR = REPO_ROOT / "policies"
 
 

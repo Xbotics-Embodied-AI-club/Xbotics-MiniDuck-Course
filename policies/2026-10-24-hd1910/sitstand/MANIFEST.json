@@ -157,9 +157,7 @@
     "battery_bracket_col": "battery_bracket_collision"
   },
   "files": {
-    "sitstand.onnx": "6aca76d815dfe9cf645e451700da9b9c6b319b79f41444f3d5a0f21970110140",
-    "sitstand_int8.h": "bdd309759bebfb1885c15a8d054ce97f984170dc26bd7fc64db957a798718add",
-    "sitstand_int8.npz": "553a8b67d5f2b8d1ebf6595b7efea964460deaf2ea5ee80ef8e0448508bf00a2"
+    "sitstand.mdp": "6ebc4d32cec6c70597b4fc4341710267c41293ae376583ce2235761f9198aad0"
   },
   "hardware": "2026-10-24-hd1910",
   "hardware_spec": {
@@ -193,7 +191,7 @@
     "weight_bytes": 198400
   },
   "iteration": 1000,
-  "mass_table_sha256": "deb81c3f948a9936a43e8de2420adb7caf9702e1ed594995b19a5b4481e061e4",
+  "mass_table_sha256": "3c0970efb5c256ddfdadcdcaac24883407bb7be565ceeecd210cd193c955e323",
   "onnx": {
     "input": "obs [1,61]",
     "max_abs_diff_vs_torch": 2.384185791015625e-06,

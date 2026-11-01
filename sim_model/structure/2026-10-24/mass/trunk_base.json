@@ -1,21 +1,8 @@
 {
   "provenance": {
-    "source": "structure 2026-10-24 = structure 2026-10-21 + 按负责人 2026-10-24 实称的分段质量微调；躯干数字不是 SolidWorks 原样",
+    "source": "SolidWorks 重算的躯干质量属性，再按实称的分段质量微调；躯干数字不是 SolidWorks 原样",
     "note": "units as printed by SolidWorks: mass kg, CoM mm, inertia kg*mm^2",
     "assumption": "坐标系1 is coincident with the MJCF trunk_base BODY frame",
-    "chain": [
-      "v1 (docs/trunk_v1_mass.json): the ORIGINAL Onshape inertial, verbatim from git",
-      "                               mass 0.199224, CoM (-22.6332, -0.0271, 2.8006), volume n/a",
-      "v2 (docs/trunk_v2_mass.json): mass 0.180, CoM (-23.779, 0.003, 0.664), volume 111658.374",
-      "v3 (this file)              : mass 0.200, CoM (-25.194, -0.051, 0.158), volume 113703.040",
-      "v2 -> v3 changed ONLY the battery's mass assignment: the CAD model and every part",
-      "position are unchanged (confirmed by the CAD author 2026-10-07). The two reports print",
-      "different volumes (111658.374 vs 113703.040 mm3) because they were taken over different",
-      "selections, NOT because the geometry moved -- so nothing derived from the geometry",
-      "(docs/battery_placement.json, the collision boxes, the contact heights) needs re-checking.",
-      "v4 (structure 2026-10-21): v3 + 2 x (21 - 18) g = +6 g at the two hip-yaw servo (xl330 mesh) centroids, compiled positions (-0.910, +/-17.500, 11.367) mm, parallel-axis via sim_model/tools/mass_properties.py swap-part --part xl330 --delta 0.003. HD-1910 mass 21 g each = Feetech HD-1910-C001 spec as filled in fanhao375/microduck-replica docs/HD-1910训练前数据清单.md (XL330 18 g); not re-measured in SolidWorks.",
-      "v5 (structure 2026-10-24): 负责人 2026-10-24 实称：从 11 号（脖俯仰）处分开，上 267 g、下 512 g（整机 779 g，仿真 783 g）。11 号舵机本体（21 g）判在身体那份：照这样对，上面 267 vs 仿真 274（295 减 11 号舵机）、下面 512 vs 仿真 509（488 加 11 号舵机），各差 -7 g / +3 g，是微调量级；若判在上面会得到 -28 g / +24 g 一减一增，与「在原版上改得不多、其他模型都能用」不符。改法：头那一组（neck、neck_pitch、yaw_roll_motion、jaw_soft，294.927 g）整组缩放到 288 g、质心不动（sim_model/tools/mass_properties.py scale-bodies --to-total 0.288）；躯干 +3 g 加在电池盒网格质心（swap-part --part battery_box --delta 0.003），206 → 209 g；腿不动。整机 0.783 → 0.779 kg；站姿重心相对两脚中点 -0.19 → -0.50 mm"
-    ],
     "conventions_verified_on_this_report": [
       "Off-diagonals are PRODUCTS of inertia (SW 'positive tensor notation'); MuJoCo fullinertia wants the inertia MATRIX entries = the negated values. Proof on THIS report: negating them makes the report's own principal rows eigenvectors of the tensor with the printed moments as eigenvalues -- I@(0.587,0,0.810)=(57.052,-0.010,78.721) vs Px*(0.587,0,0.810)=(57.050,0,78.723), and eigenvalues match (97.188,153.431,161.757) vs printed (97.189,153.431,161.757) to 0.0005 kg*mm^2.",
       "Parallel-axis between the two printed blocks holds: off-diagonal P_ij(com) = P_ij(origin) - m*c_i*c_j agrees to 0.002 kg*mm^2; diagonal I_ii(com) = I_ii(origin) - m*(c_j^2+c_k^2) agrees to 0.123 kg*mm^2, and that residual is fully explained by SW printing the mass to 3 decimals while using ~0.20019 kg internally (the two large diagonals both imply 0.20019).",
