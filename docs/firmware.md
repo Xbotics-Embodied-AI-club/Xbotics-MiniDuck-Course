@@ -62,10 +62,12 @@ uv run firmware/tools/assets.py audio 我的叫声.mp3 --as greet_3
 
 | 文件 | 说明 |
 | --- | --- |
-| {{firmware_link}} | 固件包：六个 `.bin` 文件和一份 `烧写地址.txt` |
+| {{firmware_link}} | 编译好的固件，就在仓库里：六个 `.bin` 文件和一份 `烧写地址.txt` |
 | {{tool_link}} | 乐鑫 Flash 下载工具，解压就能用，不用安装 |
 
-两个压缩包都解压到不含中文的路径下，比如 `C:\MiniDuck\`。
+已经 `git clone` 过仓库的，直接用仓库里的 {{firmware_dir}}。没有的话，在[仓库主页](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course)点 Code → Download ZIP 下载整个仓库。
+
+烧写工具读不了含中文的路径。把烧写工具和 `firmware\0.8.1` 文件夹放在不含中文的路径下，比如 `C:\MiniDuck\`。
 
 ### 连接电脑
 

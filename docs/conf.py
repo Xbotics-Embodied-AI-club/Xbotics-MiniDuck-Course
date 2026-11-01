@@ -30,7 +30,8 @@ myst_substitutions = {
     "servo": versions["hardware"]["servo"],
     "board": versions["hardware"]["board"],
     "firmware": versions["firmware"]["version"],
-    "firmware_link": f"[{versions['firmware']['file']}]({asset(versions['firmware'])})",
+    "firmware_link": f"[`{versions['firmware']['dir']}/`]({BASE}/tree/main/{versions['firmware']['dir']})",
+    "firmware_dir": f"`{versions['firmware']['dir']}/`",
     "tool_link": f"[{versions['flash_tool']['file']}]({asset(versions['flash_tool'])})",
 }
 copybutton_prompt_text = "$ "
