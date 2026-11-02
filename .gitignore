@@ -5,7 +5,9 @@ wandb/
 result/
 checkpoints/
 *.mp4
-training/hostcheck/build/
+training/export_tools/hostcheck/build/
+*.egg-info/
+.ipynb_checkpoints/
 # 自己训练时 export_policy.py 导出的中间文件
 policies/**/*.onnx
 policies/**/*_int8.h

@@ -29,7 +29,7 @@ from bam.mujoco import MujocoController
 
 import hardware
 from hardware import Hardware
-from int8 import policy_from_mdp
+from export_tools.int8 import policy_from_mdp
 from logs import run_cli
 from paths import POLICY_DIR, REPO_ROOT
 
@@ -170,7 +170,7 @@ class TerminalKeys:
 
 
 class Policy:
-    """CPU ONNX policy with metadata emitted by training/export_policy.py."""
+    """CPU ONNX policy with metadata emitted by training/export_tools/export_policy.py."""
 
     def __init__(self, path: Path):
         options = ort.SessionOptions()

@@ -1,9 +1,9 @@
 // 策略的 int8 推理（全 int8 + 层间 ELU 查表）：原始观测 → 舵机动作。各个动作共用这一份代码。
 //
-// 固件与训练侧共用这一份：固件用它跑训练出来的策略；training/hostcheck/ 在主机上编译同一份代码，验证导出的 int8 参数与
+// 固件与训练侧共用这一份：固件用它跑训练出来的策略；training/export_tools/hostcheck/ 在主机上编译同一份代码，验证导出的 int8 参数与
 // Python 整数参考逐位一致。
 //
-// 每个动作的参数由 training/export_policy.py 导出成 policies/<硬件版本>/<动作>/<名>_int8.h（定义一个
+// 每个动作的参数由 training/export_tools/export_policy.py 导出成 policies/<硬件版本>/<动作>/<名>_int8.h（定义一个
 // `static const policy_int8_t <名>_policy`，主机自检直接编它），再由 firmware/tools/assets.py 转成同目录的
 // <模型>.mdp；固件从板上文件系统读 .mdp，经 policy_int8_blob.h 解析成同一个结构，数值逐位相同。
 // 本库只做计算：浮点归一化 → int8 输入量化 → 逐层 esp-nn 逐通道全连接，层间 ELU 查表。
@@ -65,7 +65,7 @@ void policy_int8_run_q(const policy_int8_t *p, const float *obs, int8_t *out_q);
 int policy_int8_selftest(const policy_int8_t *p);
 
 // 把一份策略的推理参数整体拷进调用方给的一块连续内存需要多少字节。
-// training/hostcheck 用它核对搬运本身；固件不用：.mdp 整份读进 PSRAM 后原地解析（policy_int8_blob.h）。
+// training/export_tools/hostcheck 用它核对搬运本身；固件不用：.mdp 整份读进 PSRAM 后原地解析（policy_int8_blob.h）。
 size_t policy_int8_arena_size(const policy_int8_t *src);
 
 // 把 src 的推理参数拷进 arena（须 16 字节对齐、至少 policy_int8_arena_size 字节），

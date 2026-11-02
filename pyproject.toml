@@ -33,8 +33,17 @@ dependencies = [
     "soxr",
 ]
 
+# training/ 装进环境（可编辑），在任何目录都能 import hardware、from env import DuckEnv，notebooks/ 靠这个调用它。
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "training"}
+py-modules = ["distill", "env", "hardware", "logs", "model", "paths", "rollout", "run_policy_viewer", "train_ppo"]
+packages = ["export_tools", "servos"]
+
 [tool.uv]
-package = false
 # 下面四条与上游 microduck_rl 的 pyproject 一致 —— uv 只认「工作区根」的 override，
 # 上游作为依赖时它自己那份被忽略，所以必须在这里重述。
 override-dependencies = [

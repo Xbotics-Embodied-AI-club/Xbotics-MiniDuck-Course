@@ -61,7 +61,7 @@ from torch.utils.data import DataLoader, IterableDataset
 import hardware
 from distill import BcSettings, ExpertBc, load_teacher
 from env import NUM_ENVS, OUR_COLLISION_GEOMS, SEED, DuckEnv, Skill, max_iterations, skill_from_env
-from from_onnx import load_actor_from_onnx
+from export_tools.from_onnx import load_actor_from_onnx
 from logs import run_cli
 from model import ActorCritic, compute_gae
 from paths import checkpoint_dir, file_sha256, run_name

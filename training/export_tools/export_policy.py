@@ -7,7 +7,7 @@
 | 文件 | 给谁 |
 |---|---|
 | `walk.onnx` | 上游运行时 / 任何 ONNX 推理：归一化烘进图里，输入 `obs` [1,61]，输出 `actions` [1,14]，opset 18，附元数据 —— 与上游 `scripts/export.py` 的产物同一个约定 |
-| `walk_int8.h` | ESP32-S3 固件：int8 权重、逐通道重量化参数、层间 ELU 查表、测试向量，打包成 `walk_policy`（推理代码共用 `training/hostcheck/policy_int8/`） |
+| `walk_int8.h` | ESP32-S3 固件：int8 权重、逐通道重量化参数、层间 ELU 查表、测试向量，打包成 `walk_policy`（推理代码共用 `firmware/lib/policy/`） |
 | `walk_int8.npz` | Python：同一份 int8 参数，读回即可评测，不必重新量化 |
 | `MANIFEST.json` | 来源（哪次训练、哪份权重、哪份物理模型）、各文件摘要、三种形态的评测对照 |
 
@@ -18,7 +18,7 @@
    （通用口径；各动作专门的成功率测法在实验目录，不在这里）。
 
 跑法（训练机上，仓根目录）：
-    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/export_policy.py [model_6000.pt]
+    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/export_tools/export_policy.py [model_6000.pt]
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ from mjlab.rl.exporter_utils import attach_metadata_to_onnx, get_base_metadata
 
 from env import DuckEnv, Skill, skill_from_env
 from hardware import Hardware
-from int8 import load_npz, quantize_actor, save_npz, write_c_header
+from export_tools.int8 import load_npz, quantize_actor, save_npz, write_c_header
 from logs import run_cli
 from model import NORMALIZER_EPS, DeployedActor
 from paths import REPO_ROOT, checkpoint_dir, run_name
@@ -233,7 +233,7 @@ def main():
     int8_err = np.abs(int8_out - torch_out)
     log.info("写好 %s 与 %s：开环误差均值 %.4f rad，99 分位 %.4f rad",
              header_path.name, npz_path.name, int8_err.mean(), np.percentile(int8_err, 99))
-    hostcheck = subprocess.run(["bash", str(REPO_ROOT / "training/hostcheck/run.sh"), str(out_dir),
+    hostcheck = subprocess.run(["bash", str(REPO_ROOT / "training/export_tools/hostcheck/run.sh"), str(out_dir),
                                 c_name], capture_output=True, text=True, check=False)
     if hostcheck.returncode != 0:
         raise RuntimeError(f"主机上的 C 自检没过，{header_path.name} 不可用：\n"

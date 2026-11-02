@@ -1,4 +1,4 @@
-// 策略 int8 推理的实现。逐步的数学与 training/int8.py 的 Int8Policy 一一对应。
+// 策略 int8 推理的实现。逐步的数学与 training/export_tools/int8.py 的 Int8Policy 一一对应。
 #include "policy_int8.h"
 
 #include <math.h>

@@ -100,7 +100,7 @@ def _align16(n: int) -> int:
 # ---------------------------------------------------------------------------------------------------------
 
 def parse_policy_header(text: str) -> dict:
-    """读 training/export_policy.py 生成的 _int8.h：各数组的数值与 policy_int8_t 的标量字段。
+    """读 training/export_tools/export_policy.py 生成的 _int8.h：各数组的数值与 policy_int8_t 的标量字段。
 
     Returns:
         {"name", "obs_dim", "act_dim", "num_layers", "num_tests", "in_inv_scale", "in_zero_plus_half",
@@ -191,7 +191,7 @@ def read_policy_blob(blob: bytes) -> dict:
 def _policy_source(policy_dir: Path) -> Path:
     headers = sorted(policy_dir.glob("*_int8.h"))
     if len(headers) != 1:
-        raise SystemExit(f"{policy_dir}：要正好一个 *_int8.h（training/export_policy.py 的产物），找到 {len(headers)} 个")
+        raise SystemExit(f"{policy_dir}：要正好一个 *_int8.h（training/export_tools/export_policy.py 的产物），找到 {len(headers)} 个")
     return headers[0]
 
 

@@ -409,7 +409,7 @@ def write_c_header(policy: Int8Policy, path, test_obs: np.ndarray, provenance: s
 
     推理代码是各动作共用的 `firmware/lib/policy/src/`，每个动作的头文件只带数据。
     测试向量是一批原始观测与它们在整数参考前向下的 int8 输出 —— 单片机上
-    （以及主机上的 `training/hostcheck/`）跑同一批输入，必须逐位相等。
+    （以及主机上的 `training/export_tools/hostcheck/`）跑同一批输入，必须逐位相等。
 
     Args:
         policy: int8 策略。
@@ -430,7 +430,7 @@ def write_c_header(policy: Int8Policy, path, test_obs: np.ndarray, provenance: s
         raise ValueError(f"最宽一层 {widest} 超过 C 库的中间缓冲 {C_MAX_WIDTH}")
     expected = policy.forward_q(test_obs)
     parts = [
-        "// 由 training/export_policy.py 生成，不要手改。\n",
+        "// 由 training/export_tools/export_policy.py 生成，不要手改。\n",
         "// " + provenance.replace("\n", "\n// ") + "\n",
         "// 推理代码见 firmware/lib/policy/src/。浮点部分须以 -ffp-contract=off 编译。\n",
         "#pragma once\n#include <stdint.h>\n\n#include \"policy_int8.h\"\n\n",
