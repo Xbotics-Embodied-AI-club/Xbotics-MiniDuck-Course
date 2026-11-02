@@ -2,6 +2,15 @@
 
 版本号是发布日期加当天序号。每个版本在 [Releases](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases) 有同名发布，发布后不再改动。
 
+## v20261102.04
+
+第 3 期 notebook 的 DQN 固定了随机动作的种子，每次运行结果相同，与视频一致。硬件版本、固件、策略都不变。
+
+**你要做什么**
+
+- 电脑：`git pull`，不用重新 `uv sync`。
+- 鸭子：不用动。
+
 ## v20261102.03
 
 第 3 期的 notebook 换成 `notebooks/ep03_sarsa_dqn.ipynb`：在 gym 的悬崖行走上写 SARSA 与 Q 学习，在倒立摆上写 DQN；加入 gymnasium 依赖。硬件版本、固件、策略都不变。
