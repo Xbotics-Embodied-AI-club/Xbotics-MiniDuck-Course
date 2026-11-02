@@ -2,6 +2,15 @@
 
 版本号是发布日期加当天序号。每个版本在 [Releases](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases) 有同名发布，发布后不再改动。
 
+## v20261102.02
+
+README 写清 `training/` 与 `notebooks/` 的关系。代码、硬件版本、固件、策略都不变。
+
+**你要做什么**
+
+- 电脑：`git pull`，不用重新 `uv sync`。
+- 鸭子：不用动。
+
 ## v20261102.01
 
 加入 `notebooks/`，放第 2、3 期课上写的代码，文件名前缀与期数对应。`training/` 里导出策略的工具收进 `training/export_tools/`，`training/` 随 `uv sync` 装进环境，在任何目录都能 `import`。硬件版本、固件、策略都不变。
