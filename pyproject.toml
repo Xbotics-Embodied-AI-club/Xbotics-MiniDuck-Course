@@ -24,8 +24,9 @@ dependencies = [
     # 导出：ONNX 图 + 元数据，以及用 onnxruntime 回读校验。
     "onnx",
     "onnxruntime",
-    # 在 notebook 里动手：JupyterLab 与画图。
+    # 在 notebook 里动手：JupyterLab 与画图；第 3 期用 gym 的悬崖行走与倒立摆（gymnasium 是 OpenAI Gym 现在的维护版）。
     "jupyterlab",
+    "gymnasium[toy-text,classic-control]",
     "matplotlib",
     # 电脑端工具（firmware/tools/assets.py）：音频转换、上传到机器人。
     "requests",
