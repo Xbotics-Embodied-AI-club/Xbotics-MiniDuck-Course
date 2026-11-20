@@ -1,0 +1,30 @@
+{
+  "provenance": {
+    "source": "SolidWorks 逐零件读出的质量属性，再按实称的分段质量（单腿 119 g、躯干连脖子电池 331.4 g、头 223.3 g、电源模块连背板 140.5 g、舵机带线 24.1 g）调整；躯干数字不是 SolidWorks 原样",
+    "note": "SI units: mass kg, CoM m (body frame), inertia kg*m^2 about the CoM in the body frame (MuJoCo matrix entries)"
+  },
+  "input": {
+    "frame": "body",
+    "products": "inertia",
+    "inertia_scale": 1.0,
+    "length_scale": 1.0
+  },
+  "bodies": {
+    "trunk_base": {
+      "mass": 0.20829135752459446,
+      "ipos": [
+        -0.025536812822288358,
+        -0.00016432566073895996,
+        -0.00028060530998617883
+      ],
+      "fullinertia": [
+        0.00013337462818892,
+        0.00017098927304231963,
+        0.00012257630093439597,
+        -6.760897579943403e-08,
+        -3.225157946960813e-05,
+        -1.1371783530895149e-07
+      ]
+    }
+  }
+}

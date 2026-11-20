@@ -1,0 +1,64 @@
+{
+  "provenance": {
+    "source": "SolidWorks battery_box.stl + battery_bracket.stl, exported in their OWN part frames, in MILLIMETRES"
+  },
+  "replaces_mesh": "np_f970",
+  "replaces_mesh_file": "np_f970.stl",
+  "remove": {
+    "meshes": [
+      "power_support"
+    ],
+    "why": [
+      "power_support IS the original battery bracket: a 17 x 54.5 x 83.5 mm vertical T-shaped plate, the same shape family as the new battery_bracket (9 x 54 x 72 mm) and the same 54 mm width.",
+      "The volume accounting confirms it: old power_support 10.5 cm3 -> new battery_bracket 5.6 cm3, and the trunk total went 118.9 -> 111.7 cm3.",
+      "It is class='self_collision_only' in all 8 models (contype=conaffinity=2), so it never touched the floor. Measured impact of deleting it: trunk self-collision count is IDENTICAL in every pose and every model (STAND/SIT/FOLD 0,0,0; allcollisions FOLD 8 before and after), so the self_collision sensor is unaffected too.",
+      "The <mesh file=.../> declaration and the geom/comment lines are removed; power_support.stl is left on disk as an archive of the old part."
+    ]
+  },
+  "parts": [
+    {
+      "geom": "battery_box",
+      "mesh": "battery_box.stl",
+      "mesh_scale": [
+        0.001,
+        0.001,
+        0.001
+      ],
+      "material": "np_f970_material",
+      "pos_mm": [
+        -51.62,
+        -21.703,
+        -51.36
+      ],
+      "quat_wxyz": [
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "collision": "box"
+    },
+    {
+      "geom": "battery_bracket",
+      "mesh": "battery_bracket.stl",
+      "mesh_scale": [
+        0.001,
+        0.001,
+        0.001
+      ],
+      "material": "np_f970_material",
+      "pos_mm": [
+        -23.061,
+        -27.27,
+        -39.251
+      ],
+      "quat_wxyz": [
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "collision": "box"
+    }
+  ]
+}

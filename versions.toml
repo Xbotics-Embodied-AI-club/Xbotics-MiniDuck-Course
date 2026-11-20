@@ -1,0 +1,38 @@
+# 当前版本的唯一声明。教程站的版本信息从这里读。
+
+[course]
+version = "v20261120.01"
+
+[hardware]
+id = "2026-11-07-hd1910"
+servo = "飞特 HD-1910"
+servo_key = "feetech/hd1910"
+board = "V0.2 头板 + 身体板"
+mass_kg = 0.7927
+
+[firmware]
+version = "0.9.1"
+dir = "firmware/0.9.1"
+
+[firmware.sha256]
+"0x0_bootloader.bin" = "84bb365666003b051f564d04380d0cf5d9d85c420ddafe9fc863071b49e49bfc"
+"0x10000_firmware.bin" = "21b544c06db5e99feda25f62626cdaf2f2c54d538ab3a7816286227e71e8a670"
+"0x450000_srmodels.bin" = "2ccca44b0f1f1330ebdb7d0bc1402733dbb37b355449257f78f49be2fda2afa3"
+"0x770000_assets.bin" = "c82ed1d67e7b652c4b574cceffc72a7e66db353e3417175d37f15e0c3a47ba97"
+"0x8000_partitions.bin" = "5885e556542fc12ae24f840164ccee8a9072c89f5b4e8163ea5ed2ceac345c87"
+"0xe000_boot_app0.bin" = "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+
+[flash_tool]
+name = "乐鑫 Flash 下载工具"
+version = "3.9.11"
+release = "v20261120.01"
+file = "flash_download_tool_3.9.11.zip"
+sha256 = "c1fbf280aa04cd8fbe725bff74360fb0a7c83fbd49afcaf37f6c14a6575ea9bc"
+
+[policies]
+"standup" = "4278c96ec9b37485f0b80dfdc4b593ea536e69d05adb85f1d127466355952ec9"
+"velstand-flat" = "b99f6873c51c26f46a23a52c88b65f76e766502045ab35bda24c54c0bc186edc"
+"sitstand" = "a9ec85b468e2cb5ef9f72780125b6db92d1deb99e634fa43f70507df293fa8d4"
+"ground-pick" = "d4293080decb9a2f8759983a4063efac769881d041ba73a96ddf6fd551145761"
+"ball-kick" = "604de8218900967972a152d13708a75af9b7a58262d1e18041a628be73e396e3"
+"roulade" = "169311c9b7a1fc3d21861ec7d5bcb2a2107b3c70bf23aec8b4e5366f4c888678"

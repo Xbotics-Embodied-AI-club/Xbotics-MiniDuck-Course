@@ -1,0 +1,14 @@
+{
+  "vendor": "feetech",
+  "model": "hd1910",
+  "description": "飞特 HD-1910（HD1910M）",
+  "actuator": {
+    "params_json": "params/hd1910_m6.json",
+    "kp_fw": 5.0,
+    "max_current_a": null
+  },
+  "provenance": {
+    "actuator": "LuwuDynamics/xgoduck_rl@326d77a 公开的 1910 BAM M6 参数（Apache-2.0，原样未改，见 README.md）。kp_fw=5 与公开训练基线一致；固件把舵机运行 P 写成同一个值、D 写 0（仿真模型里没有 D）。BAM 的飞特控制模型不施加固件限流，所以不声明限流",
+    "valid_from": "2026-10-20"
+  }
+}

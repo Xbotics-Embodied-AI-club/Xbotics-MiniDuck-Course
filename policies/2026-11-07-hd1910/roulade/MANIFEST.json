@@ -1,0 +1,256 @@
+{
+  "checkpoint": "model_3000.pt",
+  "closed_loop_eval": {
+    "fp32_torch": {
+      "curriculum_step": 360000,
+      "episodes": 512,
+      "fall_env_fraction": 0.0,
+      "falls": 0,
+      "hardware": "2026-11-07-hd1910",
+      "mean_step_reward": 0.1392780991792679,
+      "num_envs": 512,
+      "skill": "roulade",
+      "steps": 250,
+      "terms": {
+        "Curriculum/action_rate_weight": -0.4000000059604645,
+        "Curriculum/arrival_damping_weight": -0.05000000074505806,
+        "Curriculum/com_range": 0.014999999664723873,
+        "Curriculum/gentle_landing_weight": 0.004999999888241291,
+        "Curriculum/head_com_range": 0.009999999776482582,
+        "Curriculum/roulade_spawn_mix": 0.800000011920929,
+        "Curriculum/torque_rate_weight": -0.0010000000474974513,
+        "Episode_Metrics/mean_action_acc": 0.0480843186378479,
+        "Episode_Reward/action_rate_l2": -0.06580224633216858,
+        "Episode_Reward/angular_momentum": -1.320774316582174e-07,
+        "Episode_Reward/arrival_damping": -0.030489856377243996,
+        "Episode_Reward/body_ang_vel": -0.013649813830852509,
+        "Episode_Reward/dof_pos_limits": -0.059978317469358444,
+        "Episode_Reward/gentle_landing": -0.005748668685555458,
+        "Episode_Reward/joint_torque_rate_l2": -8.18815897218883e-05,
+        "Episode_Reward/roulade_flatness": -0.0011205904884263873,
+        "Episode_Reward/roulade_head_pivot": 0.02596045844256878,
+        "Episode_Reward/roulade_height_after_roll": 0.7307817339897156,
+        "Episode_Reward/roulade_landing_composite": 2.813596248626709,
+        "Episode_Reward/roulade_landing_sharp": 1.4059027433395386,
+        "Episode_Reward/roulade_lateral_vel": -0.001194264623336494,
+        "Episode_Reward/roulade_overspeed": -0.003158623818308115,
+        "Episode_Reward/roulade_progress": 1.0906357765197754,
+        "Episode_Reward/roulade_rise_velocity": 0.010779491625726223,
+        "Episode_Reward/roulade_sagittal": -0.035358477383852005,
+        "Episode_Reward/roulade_stand_tax": -0.004565756767988205,
+        "Episode_Reward/roulade_upright_after_roll": 1.110843539237976,
+        "Episode_Reward/self_collisions": -0.003446094458922744,
+        "Episode_Termination/nan_state": 0.0,
+        "Episode_Termination/out_of_terrain_bounds": 0.0,
+        "Episode_Termination/time_out": 512.0,
+        "Metrics/twist/error_vel_xy": 0.07483609765768051,
+        "Metrics/twist/error_vel_yaw": 0.09165345877408981
+      }
+    },
+    "int8": {
+      "curriculum_step": 360000,
+      "episodes": 512,
+      "fall_env_fraction": 0.0,
+      "falls": 0,
+      "hardware": "2026-11-07-hd1910",
+      "mean_step_reward": 0.1396110291518271,
+      "num_envs": 512,
+      "skill": "roulade",
+      "steps": 250,
+      "terms": {
+        "Curriculum/action_rate_weight": -0.4000000059604645,
+        "Curriculum/arrival_damping_weight": -0.05000000074505806,
+        "Curriculum/com_range": 0.014999999664723873,
+        "Curriculum/gentle_landing_weight": 0.004999999888241291,
+        "Curriculum/head_com_range": 0.009999999776482582,
+        "Curriculum/roulade_spawn_mix": 0.800000011920929,
+        "Curriculum/torque_rate_weight": -0.0010000000474974513,
+        "Episode_Metrics/mean_action_acc": 0.05971707031130791,
+        "Episode_Reward/action_rate_l2": -0.06659615784883499,
+        "Episode_Reward/angular_momentum": -1.3437374946079217e-07,
+        "Episode_Reward/arrival_damping": -0.030000070109963417,
+        "Episode_Reward/body_ang_vel": -0.013593924231827259,
+        "Episode_Reward/dof_pos_limits": -0.05485310032963753,
+        "Episode_Reward/gentle_landing": -0.005635520908981562,
+        "Episode_Reward/joint_torque_rate_l2": -8.406752021983266e-05,
+        "Episode_Reward/roulade_flatness": -0.001072799670509994,
+        "Episode_Reward/roulade_head_pivot": 0.026252886280417442,
+        "Episode_Reward/roulade_height_after_roll": 0.7321612238883972,
+        "Episode_Reward/roulade_landing_composite": 2.8162038326263428,
+        "Episode_Reward/roulade_landing_sharp": 1.409767985343933,
+        "Episode_Reward/roulade_lateral_vel": -0.001255908515304327,
+        "Episode_Reward/roulade_overspeed": -0.0034918051678687334,
+        "Episode_Reward/roulade_progress": 1.0921950340270996,
+        "Episode_Reward/roulade_rise_velocity": 0.01073379535228014,
+        "Episode_Reward/roulade_sagittal": -0.03499229624867439,
+        "Episode_Reward/roulade_stand_tax": -0.0047284141182899475,
+        "Episode_Reward/roulade_upright_after_roll": 1.113000512123108,
+        "Episode_Reward/self_collisions": -0.0034593751188367605,
+        "Episode_Termination/nan_state": 0.0,
+        "Episode_Termination/out_of_terrain_bounds": 0.0,
+        "Episode_Termination/time_out": 512.0,
+        "Metrics/twist/error_vel_xy": 0.07481145113706589,
+        "Metrics/twist/error_vel_yaw": 0.09246419370174408
+      }
+    },
+    "onnx": {
+      "curriculum_step": 360000,
+      "episodes": 512,
+      "fall_env_fraction": 0.0,
+      "falls": 0,
+      "hardware": "2026-11-07-hd1910",
+      "mean_step_reward": 0.13965798408910632,
+      "num_envs": 512,
+      "skill": "roulade",
+      "steps": 250,
+      "terms": {
+        "Curriculum/action_rate_weight": -0.4000000059604645,
+        "Curriculum/arrival_damping_weight": -0.05000000074505806,
+        "Curriculum/com_range": 0.014999999664723873,
+        "Curriculum/gentle_landing_weight": 0.004999999888241291,
+        "Curriculum/head_com_range": 0.009999999776482582,
+        "Curriculum/roulade_spawn_mix": 0.800000011920929,
+        "Curriculum/torque_rate_weight": -0.0010000000474974513,
+        "Episode_Metrics/mean_action_acc": 0.04819813370704651,
+        "Episode_Reward/action_rate_l2": -0.0661502480506897,
+        "Episode_Reward/angular_momentum": -1.3224583028659254e-07,
+        "Episode_Reward/arrival_damping": -0.03045809641480446,
+        "Episode_Reward/body_ang_vel": -0.013663549907505512,
+        "Episode_Reward/dof_pos_limits": -0.05965812876820564,
+        "Episode_Reward/gentle_landing": -0.005756084807217121,
+        "Episode_Reward/joint_torque_rate_l2": -8.217382128350437e-05,
+        "Episode_Reward/roulade_flatness": -0.0011593271046876907,
+        "Episode_Reward/roulade_head_pivot": 0.026308361440896988,
+        "Episode_Reward/roulade_height_after_roll": 0.7328017354011536,
+        "Episode_Reward/roulade_landing_composite": 2.820858955383301,
+        "Episode_Reward/roulade_landing_sharp": 1.4096213579177856,
+        "Episode_Reward/roulade_lateral_vel": -0.0012050867080688477,
+        "Episode_Reward/roulade_overspeed": -0.0031832754611968994,
+        "Episode_Reward/roulade_progress": 1.0934278964996338,
+        "Episode_Reward/roulade_rise_velocity": 0.010808254592120647,
+        "Episode_Reward/roulade_sagittal": -0.03609411045908928,
+        "Episode_Reward/roulade_stand_tax": -0.0046537755988538265,
+        "Episode_Reward/roulade_upright_after_roll": 1.1140953302383423,
+        "Episode_Reward/self_collisions": -0.0029585936572402716,
+        "Episode_Termination/nan_state": 0.0,
+        "Episode_Termination/out_of_terrain_bounds": 0.0,
+        "Episode_Termination/time_out": 512.0,
+        "Metrics/twist/error_vel_xy": 0.07497164607048035,
+        "Metrics/twist/error_vel_yaw": 0.09296096861362457
+      }
+    }
+  },
+  "collision_geom_renames": {
+    "battery_box_col": "battery_box_collision",
+    "battery_bracket_col": "battery_bracket_collision"
+  },
+  "files": {
+    "roulade.mdp": "169311c9b7a1fc3d21861ec7d5bcb2a2107b3c70bf23aec8b4e5366f4c888678"
+  },
+  "hardware": "2026-11-07-hd1910",
+  "hardware_spec": {
+    "description": "V0.2 头板 + 体板，飞特 HD-1910，质量按实称分段（单腿 119 g、躯干连脖子电池 331.4 g、头 223.3 g，整机 792.7 g），体板降压 6 V 供舵机",
+    "id": "2026-11-07-hd1910",
+    "provenance": {
+      "structure": "分段质量按实称：单腿 119 g、躯干（连脖子、电池）331.4 g、头 223.3 g，整机 792.7 g",
+      "supply": "V0.2 身体板的 7.4→6 V 降压给舵机供电，板上实测 6.0 V",
+      "valid_from": "2026-11-07"
+    },
+    "servo": "feetech/hd1910",
+    "structure": "2026-11-07",
+    "supply": {
+      "load_sag_v_per_nm": null,
+      "sag_floor_v": null,
+      "vin_range_v": [
+        5.9,
+        6.1
+      ]
+    }
+  },
+  "int8": {
+    "hostcheck": "roulade: policy_int8_selftest 0 mismatches over 34 test vectors; copy (210848 bytes): 0 mismatches, 0 pointers outside",
+    "kernel": "esp-nn esp_nn_fully_connected_per_ch_s8 @ d116020",
+    "open_loop_abs_err_vs_fp32": {
+      "max": 0.4898834228515625,
+      "mean": 0.026021387428045273,
+      "p99": 0.09775922447443008
+    },
+    "test_vectors": 34,
+    "weight_bytes": 198400
+  },
+  "iteration": 3000,
+  "mass_table_sha256": "e72abb8afb7a8fd9b199376ec07464b4ce2d23de6a635c0fedf3cc54e42950a8",
+  "onnx": {
+    "input": "obs [1,61]",
+    "max_abs_diff_vs_torch": 3.814697265625e-06,
+    "metadata": {
+      "action_scale": 1.0,
+      "command_names": [
+        "twist"
+      ],
+      "default_joint_pos": [
+        0.0,
+        -0.08730000257492065,
+        -0.4578999876976013,
+        -0.004900000058114529,
+        0.453000009059906,
+        0.3490999937057495,
+        0.3490999937057495,
+        0.0,
+        0.0,
+        0.0,
+        0.08730000257492065,
+        0.4578999876976013,
+        0.004900000058114529,
+        -0.453000009059906
+      ],
+      "joint_names": [
+        "left_hip_yaw",
+        "left_hip_roll",
+        "left_hip_pitch",
+        "left_knee",
+        "left_ankle",
+        "neck_pitch",
+        "head_pitch",
+        "head_yaw",
+        "head_roll",
+        "right_hip_yaw",
+        "right_hip_roll",
+        "right_hip_pitch",
+        "right_knee",
+        "right_ankle"
+      ],
+      "observation_names": [
+        "base_ang_vel",
+        "projected_gravity",
+        "joint_pos",
+        "joint_vel",
+        "actions",
+        "command",
+        "head_command",
+        "body_command"
+      ]
+    },
+    "opset": 18,
+    "output": "actions [1,14]"
+  },
+  "robot_xml_sha256": "ed9bfe0218ef1d817c5f52179d57ea58ba4316a4b00faf74070da5636635fe6a",
+  "servo": "feetech/hd1910",
+  "servo_spec": {
+    "actuator": {
+      "kp_fw": 5.0,
+      "max_current_a": null,
+      "params_json": "params/hd1910_m6.json"
+    },
+    "description": "飞特 HD-1910（HD1910M）",
+    "model": "hd1910",
+    "provenance": {
+      "actuator": "LuwuDynamics/xgoduck_rl@326d77a 公开的 1910 BAM M6 参数（Apache-2.0，原样未改，见 README.md）。kp_fw=5 与公开训练基线一致；固件把舵机运行 P 写成同一个值、D 写 0（仿真模型里没有 D）。BAM 的飞特控制模型不施加固件限流，所以不声明限流",
+      "valid_from": "2026-10-20"
+    },
+    "vendor": "feetech"
+  },
+  "skill": "roulade",
+  "task": "Mjlab-Roulade-Flat-MicroDuck",
+  "upstream_commit": "ceca01706143d729305baa94cbd8ab990979e325"
+}
