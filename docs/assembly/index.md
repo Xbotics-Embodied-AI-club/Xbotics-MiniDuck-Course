@@ -2,6 +2,10 @@
 
 整只小鸭子按模块装：先装右腿、左腿和胯部，把腿接到胯上并装好电池与电源板，再装脖子和头部，最后用两片肩壳合在一起。先看全部部件，再看各个模块怎样拼成整只。
 
+## 基础介绍
+
+<div class="bili"><iframe src="https://player.bilibili.com/player.html?isOutside=true&aid=117483528788527&bvid=BV1eBnm65EBm&cid=42950461681&p=1&autoplay=0" scrolling="no" frameborder="no" allowfullscreen="true"></iframe></div>
+
 ## 部件
 
 <video class="anim" controls preload="metadata" poster="../_static/assembly/parts.jpg" src="../_static/assembly/parts.mp4"></video>
