@@ -4,15 +4,17 @@ MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，�
 
 ![小鸭子 MiniDuck](images/duck-standing.jpg){w=320px}
 
-拿到装好的小鸭子，从「上电与连接」开始，几分钟就能让它走起来。
+拿到散件，先照「装配」装起来；拿到装好的小鸭子，从「上电与连接」开始，几分钟就能让它走起来。
 
 | 我想 | 看这里 |
 | --- | --- |
+| 把散件装成一只小鸭子 | [装配](assembly/index.md) |
 | 打开电源，用手机连上它 | [上电与连接](power-on.md) |
 | 让它站起来、走路、坐下、听语音命令 | [基础使用](basic-use.md) |
 | 更新固件，或者换一份策略 | [固件与策略更新](firmware.md) |
 | 在电脑上看它在仿真器里走 | [仿真器](simulator.md) |
 | 对照版本，看每次更新要做什么 | [版本与更新](versions.md) |
+| 跟着视频学强化学习 | [课程](course/index.md) |
 
 ## 当前版本
 
@@ -33,11 +35,25 @@ MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，�
 
 ```{toctree}
 :hidden:
-:maxdepth: 2
+:caption: 装配
+
+assembly/index
+```
+
+```{toctree}
+:hidden:
+:caption: 使用
 
 power-on
 basic-use
 firmware
 simulator
 versions
+```
+
+```{toctree}
+:hidden:
+:caption: 课程
+
+course/index
 ```
