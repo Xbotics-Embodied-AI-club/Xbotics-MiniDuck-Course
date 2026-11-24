@@ -14,6 +14,16 @@ MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，�
 完整声明见 [versions.toml](versions.toml)，每次更新改了什么、你要做什么见 [CHANGELOG.md](CHANGELOG.md)。
 编译好的固件在 [firmware/0.9.1/](firmware/0.9.1)，烧写工具在[这里下载](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases/download/v20261120.01/flash_download_tool_3.9.11.zip)。
 
+## 课程视频
+
+| 讲次 | 视频 | 动手代码 |
+| --- | --- | --- |
+| 01 上手 MiniDuck | [B 站](https://www.bilibili.com/video/BV1rFxe6hEdr) | — |
+| 02 强化学习的数学表达 | [B 站](https://www.bilibili.com/video/BV1xExx6jEGW) | `notebooks/ep02_env.ipynb` |
+| 03 价值函数与贝尔曼方程 | [B 站](https://www.bilibili.com/video/BV1es4G6ZExV) | `notebooks/ep03_sarsa_dqn.ipynb` |
+
+装配动画和整套课程表在[手册](https://xbotics-embodied-ai-club.github.io/Xbotics-MiniDuck-Course/)里。
+
 ## 仓库里有什么
 
 | 路径 | 内容 |
