@@ -38,6 +38,14 @@ MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，�
 :caption: 装配
 
 assembly/index
+assembly/prep
+assembly/right-leg
+assembly/left-leg
+assembly/hip
+assembly/legs-on
+assembly/neck
+assembly/head
+assembly/finish
 ```
 
 ```{toctree}
@@ -56,4 +64,7 @@ versions
 :caption: 课程
 
 course/index
+course/01-miniduck
+course/02-rl-problem
+course/03-value-bellman
 ```

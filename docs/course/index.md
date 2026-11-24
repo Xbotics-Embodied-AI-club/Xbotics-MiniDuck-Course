@@ -26,10 +26,3 @@
 uv run jupyter lab notebooks/
 ```
 
-```{toctree}
-:hidden:
-
-01-miniduck
-02-rl-problem
-03-value-bellman
-```

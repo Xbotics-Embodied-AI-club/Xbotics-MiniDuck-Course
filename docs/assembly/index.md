@@ -24,15 +24,3 @@
 
 螺丝几乎全是 M2×6 自攻螺丝（共 131 颗），接腿与电源一章另用两颗 M3×16。各章表里螺丝一列只写数字的都是 M2×6 自攻螺丝；加粗的是接线：线要在挡住它的零件装上之前接好。
 
-```{toctree}
-:hidden:
-
-prep
-right-leg
-left-leg
-hip
-legs-on
-neck
-head
-finish
-```
