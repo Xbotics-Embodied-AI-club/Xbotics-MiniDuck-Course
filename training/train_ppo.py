@@ -742,6 +742,7 @@ def main():
 
     training_settings = {
         "run_name": name, "skill": skill.name, "task": skill.task_id, "num_envs": NUM_ENVS,
+        "reward_weights": dict(skill.reward_weights),   # MINIDUCK_REWARD_WEIGHTS 改过的几项；空 = 全照上游
         "max_iterations": iterations, "num_steps_per_env": NUM_STEPS_PER_ENV, "seed": seed,
         "obs_dim": env.obs_dim, "critic_obs_dim": env.critic_obs_dim, "action_dim": env.action_dim,
         "upstream_cfg": upstream_cfg, "upstream_source": upstream_source(),

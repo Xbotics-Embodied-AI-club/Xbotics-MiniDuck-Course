@@ -7,17 +7,26 @@ PPO 另外改 `batches`，把同一段数据切成小批、反复用几遍。采
 """
 from __future__ import annotations
 
+import logging
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
 
 import lightning as L
 import torch
+from lightning.pytorch.callbacks import TQDMProgressBar
+from lightning.pytorch.utilities.warnings import PossibleUserWarning
 from torch.utils.data import DataLoader, IterableDataset
 
 from env import DuckEnv
 from model import ActorCritic
 
 Batch = dict[str, torch.Tensor]
+
+# Lightning 每次开训都打几行横幅（有没有 GPU、云端记录的广告、Tensor Core 的提示）和「数据加载器没开多进程」的提醒。
+# 这里的数据是仿真现采的、不经过加载进程，这些提示对训练没有信息：调到只报警告，notebook 与训练日志里只留训练本身的输出。
+logging.getLogger("lightning.pytorch").setLevel(logging.WARNING)
+warnings.filterwarnings("ignore", category=PossibleUserWarning, message=".*does not have many workers")
 
 # 每一步记下的量，顺序与 `sample_rollout` 里收集的顺序一致
 ROLLOUT_KEYS = ("obs", "critic_obs", "actions", "log_probs", "values", "action_means", "action_stds",
@@ -153,9 +162,10 @@ def build_trainer(iterations: int, accelerator: str = "gpu", progress_bar: bool 
     Returns:
         Trainer。
     """
+    # 进度条用文本的 tqdm：Lightning 2.6 装了 rich 就默认用 rich 的进度条，它在没装 ipywidgets 的 notebook 里不显示
     return L.Trainer(accelerator=accelerator, devices=1, max_epochs=iterations, reload_dataloaders_every_n_epochs=1,
                      enable_checkpointing=False, logger=False, enable_model_summary=False,
-                     enable_progress_bar=progress_bar)
+                     enable_progress_bar=progress_bar, callbacks=[TQDMProgressBar()] if progress_bar else [])
 
 
 def fit(algo: OnPolicy, iterations: int) -> None:

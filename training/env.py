@@ -25,6 +25,7 @@ import logging
 import math
 import os
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,8 @@ class Skill:
             上一个坡上回合的成败升降（自适应版里坡上的环境摔倒就终止，顶推与躺着开局只留给平地环境，见 terrain.py）。
         weak_getup: 起身在弱舵机下训（要配 `vin_range_v`）：critic 看舵机力气、奖励记离开仰躺的进度
             （`getup.configure`），还躺在背上的帧不学站立老师（`distill.free_supine`）。
+        reward_weights: 改上游奖励表里几项的权重，（项名, 权重）；空 = 全照上游。由 `MINIDUCK_REWARD_WEIGHTS` 给
+            （`skill_from_env`），课上「改一项奖励权重、训一个自己的版本」用它，不用去改装好的上游包。
     """
 
     name: str
@@ -91,6 +94,7 @@ class Skill:
     bumpy_ground: str = "box"
     slope_schedule: str = "ramp"
     weak_getup: bool = False
+    reward_weights: tuple[tuple[str, float], ...] = ()
 
 
 SKILLS = {s.name: s for s in (
@@ -152,7 +156,7 @@ SEED = 42
 
 
 def skill_from_env() -> Skill:
-    """入口用：从 `MINIDUCK_SKILL` 取这一次跑哪个动作。
+    """入口用：从 `MINIDUCK_SKILL` 取这一次跑哪个动作；给了 `MINIDUCK_REWARD_WEIGHTS` 就改那几项奖励的权重。
 
     Returns:
         动作声明。
@@ -163,7 +167,35 @@ def skill_from_env() -> Skill:
     name = os.environ.get("MINIDUCK_SKILL", "").strip()
     if name not in SKILLS:
         raise RuntimeError(f"MINIDUCK_SKILL={name!r} 不对，可选：{', '.join(SKILLS)}")
-    return SKILLS[name]
+    weights = reward_weights_from_env()
+    return dataclasses.replace(SKILLS[name], reward_weights=weights) if weights else SKILLS[name]
+
+
+def reward_weights_from_env() -> tuple[tuple[str, float], ...]:
+    """读 `MINIDUCK_REWARD_WEIGHTS`：逗号分开的「项名=权重」，例如 `air_time=0,upright=2.5`；没给就是空。
+
+    项名是上游奖励表里的名字（建环境时核对，写错了报错并列出有哪些）。
+
+    Returns:
+        （项名, 权重）。
+
+    Raises:
+        RuntimeError: 某一项不是「项名=数」的写法。
+    """
+    text = os.environ.get("MINIDUCK_REWARD_WEIGHTS", "").strip()
+    if not text:
+        return ()
+    weights = []
+    for item in text.split(","):
+        name, _, value = item.partition("=")
+        try:
+            weight = float(value)          # 没有「=」时 value 是空串，同样走这里报错
+        except ValueError:
+            weight = None
+        if weight is None or not name.strip():
+            raise RuntimeError(f"MINIDUCK_REWARD_WEIGHTS 里的 {item!r} 不是「项名=权重」，例：air_time=0")
+        weights.append((name.strip(), weight))
+    return tuple(weights)
 
 
 def max_iterations(skill: Skill) -> int:
@@ -315,7 +347,7 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
         mjlab 的环境配置。
 
     Raises:
-        RuntimeError: 上游这个任务读模型的函数已不是声明里的那个。
+        RuntimeError: 上游这个任务读模型的函数已不是声明里的那个；或 `skill.reward_weights` 里有奖励表没有的项。
     """
     cfg = load_env_cfg(skill.task_id)
     robot = cfg.scene.entities["robot"]
@@ -366,6 +398,10 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
         if skill.vin_range_v is None:
             raise RuntimeError(f"{skill.name}：weak_getup 要在舵机电压随机（vin_range_v）的训练里用")
         getup.configure(cfg, nominal_v=sum(hardware.supply["vin_range_v"]) / 2)
+    for name, weight in skill.reward_weights:
+        if name not in cfg.rewards:
+            raise RuntimeError(f"{skill.task_id} 的奖励表里没有 {name!r}，有：{', '.join(cfg.rewards)}")
+        cfg.rewards[name].weight = weight
     return cfg
 
 
@@ -836,7 +872,10 @@ class DuckEnv:
         # mjlab 建环境时用 print 打十几张管理器表格（各管理器有哪些项），没有开关可关。
         # 收下来记成一条 DEBUG：屏幕上不出现，要查任务配置时调到 DEBUG 还看得到。
         captured = io.StringIO()
-        with contextlib.redirect_stdout(captured):
+        with contextlib.redirect_stdout(captured), warnings.catch_warnings():
+            # 上游实体配置里执行器的名字规则同时匹配到 7 个 site（imu、两只脚、相机……）：site 没有传动，执行器照样只接 14 个关节，
+            # mjlab 却每建一次环境就警告一遍。只在建环境这一步静音这一条。
+            warnings.filterwarnings("ignore", message="Actuator config matched .* site")
             self._env = ManagerBasedRlEnv(cfg=cfg, device=device,
                                           render_mode="rgb_array" if render else None)
         log.debug("mjlab 建环境时的输出：\n%s", captured.getvalue())
@@ -845,9 +884,10 @@ class DuckEnv:
         check_collisions_kept(robot_spec_fn(skill, hardware), self._env.sim.mj_model)
         servos.check_actuators(self._env, hardware, skill.vin_range_v)
         check_locked_joints(self._env, hardware, skill)
-        log.info("环境就位：%s，%d 个并行环境，硬件 %s，机器人模型 %s（躯干与质量表一致），舵机 %s%s",
+        log.info("环境就位：%s，%d 个并行环境，硬件 %s，机器人模型 %s（躯干与质量表一致），舵机 %s%s%s",
                  skill.name, num_envs, hardware.id, skill.robot_xml, servos.describe(hardware, skill.vin_range_v),
-                 f"，锁死 {', '.join(hardware.locked_joints)}" if hardware.locked_joints else "")
+                 f"，锁死 {', '.join(hardware.locked_joints)}" if hardware.locked_joints else "",
+                 f"，奖励权重改了 {dict(skill.reward_weights)}" if skill.reward_weights else "")
         self.device = torch.device(self._env.device)
         self.num_envs = self._env.num_envs
         self.action_dim = int(self._env.single_action_space.shape[0])
