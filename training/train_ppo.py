@@ -3,8 +3,8 @@
 训哪个动作由 `MINIDUCK_SKILL` 选，在哪个硬件版本上训由 `MINIDUCK_HARDWARE` 选（`<日期>-<舵机>`，
 见 sim_model/hardware/），这一次叫什么由 `MINIDUCK_RUN_NAME` 给；三者都必须显式给出。
 
-结构是一条 Lightning 链：在线采样的 `IterableDataset` → `LightningDataModule` →
-算 loss 的 `LightningModule` → `trainer.fit`。
+结构：`PPO` 继承 `onpolicy.OnPolicy`，采样、每轮重新采样、Lightning 训练骨架都在那里（选修 S03–S05 在课上
+一层层写出来的就是这一套）；这里写 PPO 的优势、小批与损失，以及上游这套配方另外要的东西。
 
 **训练方法与上游一致**，「上游」指 microduck_rl 用 `uv run train Mjlab-Velocity-Flat-MicroDuck`
 跑的那条路（mjlab 1.3.0 的 train 脚本 + rsl_rl 5.0.1 的 PPO）。逐项对齐的清单：
@@ -54,17 +54,14 @@ import json
 import logging
 import os
 import time
-from collections.abc import Iterator
 from pathlib import Path
 
-import lightning as L
 import torch
 import wandb
 from mjlab.tasks.registry import load_rl_cfg
 from mjlab_microduck.tasks.distill import PpoWithExpertBcCfg
 from mjlab_microduck.tasks.symmetry import microduck_vel_symmetry
 from tensordict import TensorDict
-from torch.utils.data import DataLoader, IterableDataset
 
 import getup
 import hardware
@@ -83,6 +80,7 @@ from env import (
 from export_tools.from_onnx import load_actor_from_onnx
 from logs import run_cli
 from model import ActorCritic, compute_gae
+from onpolicy import OnPolicy, build_trainer, flat, normalize, sample_rollout
 from paths import checkpoint_dir, file_sha256, run_name
 from transplant import layout_of, transplant
 
@@ -324,112 +322,6 @@ class EpisodeTracker:
             self.length[done] = 0.0
 
 
-class RolloutDataset(IterableDataset):
-    """一轮迭代的在线数据：先采一段轨迹，再按 PPO 的划分吐出全部小批。"""
-
-    def __init__(self, env, model, tracker):
-        super().__init__()
-        self.env = env
-        self.model = model
-        self.tracker = tracker
-        self.window = IterationLog()
-        self.rollout_obs: torch.Tensor | None = None
-        self.rollout_anchor_ok: torch.Tensor | None = None
-        self.rollout_expert_ok: torch.Tensor | None = None
-        self.rollout: dict[str, torch.Tensor] | None = None
-
-    def __iter__(self) -> Iterator[dict[str, torch.Tensor]]:
-        # 一个数据集对象 = 一轮 = 一段 rollout，迭代几次都只采一次。Lightning 每轮重建
-        # dataloader 后先迭代一次预取一个小批探路，轮内训练时再从头迭代一次；每次都采的话
-        # 每轮推进 48 个环境步，课程表（按环境步分段）比上游快一倍，训练却照常跑、不报错。
-        if self.rollout is None:
-            self.rollout = self.sample_rollout()
-        yield from self.iter_mini_batches(self.rollout)
-
-    @torch.no_grad()
-    def sample_rollout(self):
-        """用当前策略采 24 步，记下旧策略的对数概率与分布参数，算好优势。
-
-        Returns:
-            整段 rollout，键为各量名，张量形状 (T, N, ...)。
-        """
-        env, model = self.env, self.model
-        obs, critic_obs = env.get_observations()
-        steps = {k: [] for k in ("obs", "critic_obs", "actions", "log_probs", "values",
-                                 "rewards", "dones", "action_means", "action_stds")}
-        anchor_ok = []
-        expert_ok = env.expert_allowed()   # 舵机电压开训时抽定、重置不重抽，整轮不变
-        for _ in range(NUM_STEPS_PER_ENV):
-            # 这一帧观测所在的环境是不是平地（坡在重置时才换，所以在 step 之前取，与 obs 同属一个回合）
-            anchor_ok.append(env.anchor_allowed())
-            actions, log_probs, values, means, stds = model.act(obs, critic_obs)
-            next_obs, next_critic_obs, rewards, dones, info = env.step(actions)
-            self.tracker.step(rewards, dones, info["mjlab_extras"], self.window)
-            # 超时只是截断，不是终点：把 critic 对当前状态的估值折扣后补进奖励。
-            # 加在副本上，统计里记的仍是环境给的原始奖励（同上游）。
-            rewards = rewards + PPO.gamma * values.squeeze(-1) * info["time_outs"].float()
-            for key, value in (("obs", obs), ("critic_obs", critic_obs), ("actions", actions),
-                               ("log_probs", log_probs), ("values", values),
-                               ("rewards", rewards), ("dones", dones.float()),
-                               ("action_means", means), ("action_stds", stds)):
-                steps[key].append(value)
-            # 归一化统计量用新观测更新（同上游：在处理这一步时、用 step 返回的观测）。
-            model.actor_normalizer.update(next_obs)
-            model.critic_normalizer.update(next_critic_obs)
-            obs, critic_obs = next_obs, next_critic_obs
-
-        rollout = {k: torch.stack(v) for k, v in steps.items()}
-        # 行为克隆在 PPO 更新之后、用的就是这一轮学生自己采到的观测。
-        self.rollout_obs = rollout["obs"].reshape(-1, rollout["obs"].shape[-1])
-        self.rollout_anchor_ok = torch.stack(anchor_ok).reshape(-1)
-        self.rollout_expert_ok = expert_ok.repeat(NUM_STEPS_PER_ENV)
-        advantages, returns = compute_gae(rollout["rewards"], rollout["dones"], rollout["values"],
-                                          model.value(critic_obs), PPO.gamma, PPO.lam)
-        rollout["advantages"] = (advantages - advantages.mean()) / (advantages.std() + 1.0e-8)
-        rollout["returns"] = returns
-        return rollout
-
-    def iter_mini_batches(self, rollout):
-        """把整段 rollout 打散成小批，同一份划分重复用 5 遍。
-
-        Args:
-            rollout: `sample_rollout` 的产出。
-
-        Yields:
-            一个个小批字典。
-        """
-        batch_size = rollout["actions"].shape[0] * rollout["actions"].shape[1]
-        mini_batch_size = batch_size // PPO.num_mini_batches
-        flat = {k: v.reshape(batch_size, *v.shape[2:]) for k, v in rollout.items()
-                if k not in ("rewards", "dones")}
-        # 一次划分、反复使用：上游的小批生成器在循环外只打乱一次。
-        indices = torch.randperm(PPO.num_mini_batches * mini_batch_size, device=flat["obs"].device)
-        for _ in range(PPO.num_learning_epochs):
-            for i in range(PPO.num_mini_batches):
-                selected = indices[i * mini_batch_size:(i + 1) * mini_batch_size]
-                yield {k: v[selected] for k, v in flat.items()}
-
-
-class RolloutData(L.LightningDataModule):
-    """持有持久环境，每轮把用最新策略采到的新数据集交给 Trainer。"""
-
-    def __init__(self, env, model):
-        super().__init__()
-        self.env = env
-        self.model = model
-        self.tracker = EpisodeTracker(env.num_envs, env.device)
-        self.dataset: RolloutDataset | None = None
-
-    def train_dataloader(self):
-        """每轮重建一次数据集 = 每轮重新采样（配合 `reload_dataloaders_every_n_epochs=1`）。
-
-        Returns:
-            包着在线数据集的 DataLoader；`batch_size=None` 表示数据集自己吐整批。
-        """
-        self.dataset = RolloutDataset(self.env, self.model, self.tracker)
-        return DataLoader(self.dataset, batch_size=None)
-
-
 def mirror_loss(model, obs, critic_obs, means):
     """镜像损失：左右镜像后的观测下的动作均值，与原观测下动作均值的镜像之间的均方差。
 
@@ -452,8 +344,11 @@ def mirror_loss(model, obs, critic_obs, means):
     return torch.nn.functional.mse_loss(mirrored_means, target[n:].detach())
 
 
-class PPO(L.LightningModule):
-    """一个小批的 PPO 损失、学习率自适应、分组梯度裁剪、记录与存盘。"""
+class PPO(OnPolicy):
+    """PPO：GAE 优势、5 遍 × 4 个小批、裁剪的损失、按 KL 调学习率；外加镜像、行为克隆、续训、记录与存盘。
+
+    采样、每轮重新采样、Adam、actor 与 critic 分开裁梯度在 `OnPolicy` 里（超参数与上游一致）。
+    """
 
     clip_param = 0.2
     value_loss_coef = 1.0
@@ -469,9 +364,7 @@ class PPO(L.LightningModule):
     def __init__(self, model, env, name, ckpt_dir, training_settings, iterations,
                  bc: ExpertBc | None = None, optimizer_state: dict | None = None,
                  critic_warmup_iters: int = 0, mirror_loss_coeff: float | None = None):
-        super().__init__()
-        self.model = model
-        self.env = env
+        super().__init__(env, model, NUM_STEPS_PER_ENV)
         self.run_name = name
         self.ckpt_dir = ckpt_dir
         self.training_settings = training_settings
@@ -483,6 +376,13 @@ class PPO(L.LightningModule):
         self.critic_warmup_iters = critic_warmup_iters
         # 镜像损失的系数；上游这个任务没开对称性时为 None。
         self.mirror_loss_coeff = mirror_loss_coeff
+        # 每个环境当前回合累计的奖励与步数，跨轮持续；本轮结束的回合记进 window（每轮换一个新的）
+        self.tracker = EpisodeTracker(env.num_envs, env.device)
+        self.window = IterationLog()
+        # 行为克隆在 PPO 更新之后用这一轮学生自己采到的观测，以及每帧能不能学站立老师、走路老师的标记
+        self.rollout_obs: torch.Tensor | None = None
+        self.rollout_anchor_ok: torch.Tensor | None = None
+        self.rollout_expert_ok: torch.Tensor | None = None
         self.latest_kl = torch.zeros(())
         self.latest_lr = self.learning_rate
         self.batch_records: list[dict[str, float]] = []
@@ -502,14 +402,6 @@ class PPO(L.LightningModule):
                                     dir=self.ckpt_dir.as_posix(), config=self.training_settings,
                                     settings=wandb.Settings(silent=True))
 
-    def configure_optimizers(self):
-        """actor 与 critic 的全部参数交给一个 Adam。
-
-        Returns:
-            Adam 优化器。
-        """
-        return torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
-
     def on_fit_start(self):
         """热启动时把源训练的优化器状态装进刚建好的 Adam。"""
         if self.optimizer_state is not None:
@@ -523,17 +415,71 @@ class PPO(L.LightningModule):
         """本轮是否还在 critic 热身期（只训 critic）。"""
         return self.current_epoch < self.critic_warmup_iters
 
-    def training_step(self, batch, batch_idx):
-        """算一个小批的 PPO 损失。
-
-        Args:
-            batch: 数据集吐出的一个小批。
-            batch_idx: Lightning 规定的形参；按顺序消费数据，不需要序号。
+    def collect(self):
+        """采一轮，顺带记回合统计，以及行为克隆要的每帧标记。
 
         Returns:
-            本步的总损失。
+            这一轮的轨迹。
         """
-        del batch_idx
+        self.window = IterationLog()
+        expert_ok = self.env.expert_allowed()   # 舵机电压开训时抽定、重置不重抽，整轮不变
+        # 这一帧所在的环境是不是平地。坡在重置时才换，所以第 t 帧取的是第 t 步之前那一刻：
+        # 开采前取一次，之后每走一步取一次（那是下一帧的），最后多出来的一个不要
+        anchor_ok = [self.env.anchor_allowed()]
+
+        def on_step(rewards, dones, info):
+            self.tracker.step(rewards, dones, info["mjlab_extras"], self.window)   # 统计记原始奖励（同上游）
+            anchor_ok.append(self.env.anchor_allowed())
+
+        rollout = sample_rollout(self.env, self.model, self.steps, on_step)
+        self.rollout_obs = rollout["obs"].flatten(0, 1)
+        self.rollout_anchor_ok = torch.stack(anchor_ok[:-1]).flatten()
+        self.rollout_expert_ok = expert_ok.repeat(self.steps)
+        return rollout
+
+    def prepare(self, rollout):
+        """GAE 优势（整段一起标准化）与价值目标；超时步上补 γ·V(s)。
+
+        Args:
+            rollout: 这一轮的轨迹。
+
+        Returns:
+            展平成一条条样本的训练数据。
+        """
+        # 超时只是截断，不是终点：把 critic 对那个状态的估值折扣后补进奖励
+        rewards = rollout["rewards"] + self.gamma * rollout["values"].squeeze(-1) * rollout["time_outs"]
+        advantages, returns = compute_gae(rewards, rollout["dones"], rollout["values"], rollout["next_value"],
+                                          self.gamma, self.lam)
+        return {**flat(rollout, "obs", "critic_obs", "actions", "log_probs", "values", "action_means",
+                       "action_stds"),
+                "advantages": normalize(advantages).flatten(), "returns": returns.flatten(0, 1)}
+
+    def batches(self, rollout):
+        """把这一轮的数据打散成小批，同一份划分重复用 5 遍（上游的小批生成器在循环外只打乱一次）。
+
+        Args:
+            rollout: 这一轮的轨迹。
+
+        Yields:
+            一个个小批。
+        """
+        data = self.prepare(rollout)
+        size = len(data["actions"]) // self.num_mini_batches
+        order = torch.randperm(self.num_mini_batches * size, device=data["obs"].device)
+        for _ in range(self.num_learning_epochs):
+            for i in range(self.num_mini_batches):
+                picked = order[i * size:(i + 1) * size]
+                yield {key: value[picked] for key, value in data.items()}
+
+    def loss(self, batch):
+        """一个小批的 PPO 损失。
+
+        Args:
+            batch: 一个小批。
+
+        Returns:
+            总损失。
+        """
         dist = self.model.action_distribution(batch["obs"])
         log_probs = dist.log_prob(batch["actions"]).sum(dim=-1)
         entropy = dist.entropy().sum(dim=-1).mean()
@@ -584,34 +530,17 @@ class PPO(L.LightningModule):
         for group in optimizer.param_groups:
             group["lr"] = self.latest_lr
 
-    def configure_gradient_clipping(self, optimizer, gradient_clip_val=None,
-                                    gradient_clip_algorithm=None):
-        """actor 与 critic 分开裁剪梯度，各自的范数上限都是 1.0（同上游）。
-
-        合在一起裁的话，critic 的大梯度会把 actor 的那份一并压小。
-
-        Args:
-            optimizer: Lightning 传入的优化器（这里不用，裁剪按参数分组做）。
-            gradient_clip_val: Trainer 的统一裁剪值；本训练器不用它，故 Trainer 也不设。
-            gradient_clip_algorithm: 同上。
-        """
-        del optimizer, gradient_clip_val, gradient_clip_algorithm
-        torch.nn.utils.clip_grad_norm_(self.model.actor_parameters(), self.max_grad_norm)
-        torch.nn.utils.clip_grad_norm_(self.model.critic_parameters(), self.max_grad_norm)
-
     def on_train_epoch_end(self):
         """本轮 PPO 更新完：需要时跑行为克隆，再按间隔存盘，指标写进文件与 W&B，够 10 秒报一行进度。"""
         iteration = self.current_epoch + 1
-        dataset = self.trainer.datamodule.dataset
         metrics = {k: sum(r[k] for r in self.batch_records) / len(self.batch_records)
                    for k in self.batch_records[0]}
         if self.bc is not None:
             with torch.enable_grad():
-                metrics.update(self.bc.update(dataset.rollout_obs, dataset.rollout_anchor_ok,
-                                              dataset.rollout_expert_ok))
+                metrics.update(self.bc.update(self.rollout_obs, self.rollout_anchor_ok, self.rollout_expert_ok))
         if iteration % SAVE_INTERVAL == 0 or iteration == self.iterations:
             self.save(iteration)
-        metrics.update(dataset.window.summary())
+        metrics.update(self.window.summary())
         metrics["lr"] = self.latest_lr
         metrics["action_std"] = float(self.model.std.detach().mean())
         wandb.log(metrics, step=iteration)
@@ -727,24 +656,6 @@ def transplant_source_from_env(skill, warm_from: Path | None, init) -> tuple[Pat
     return path, source
 
 
-def build_trainer(iterations: int, accelerator: str = "gpu") -> L.Trainer:
-    """建 Lightning Trainer：一个 epoch = 一轮 PPO 迭代，每轮重建 dataloader = 每轮采新数据。
-
-    Args:
-        iterations: 迭代轮数。
-        accelerator: 训练用 "gpu"；单测用 "cpu"。
-
-    Returns:
-        Trainer。
-    """
-    return L.Trainer(
-        accelerator=accelerator, devices=1, max_epochs=iterations,
-        reload_dataloaders_every_n_epochs=1, enable_checkpointing=False, logger=False,
-        # 进度条写进日志文件就是满屏回车符；进度改由 log_progress 每 10 秒一行报。
-        enable_model_summary=False, enable_progress_bar=False,
-    )
-
-
 def main():
     """起一次完整训练。
 
@@ -853,13 +764,12 @@ def main():
     log.info("开始训练 %s（%s，硬件 %s）：%d 个并行环境 × %d 轮，种子 %d，权重写到 %s/",
              skill.name, skill.task_id, hw.id, NUM_ENVS, iterations, seed, ckpt_dir.name)
     started = time.monotonic()
-    trainer = build_trainer(iterations)
+    trainer = build_trainer(iterations, progress_bar=False)
     trainer.fit(PPO(model, env, name, ckpt_dir, training_settings, iterations, bc, optimizer_state,
                     # 移植来的 actor 一开训就会走（锁头模型上直接测：不摔、速度照旧），而新建的优化器
                     # 头两轮就能把它推散（训 2 轮后摔一半），所以同续训一样先只训 critic。
                     critic_warmup_iters=CRITIC_WARMUP_ITERS if init is not None or transplant_from is not None else 0,
-                    mirror_loss_coeff=(upstream_cfg["symmetry_cfg"] or {}).get("mirror_loss_coeff")),
-                RolloutData(env, model))
+                    mirror_loss_coeff=(upstream_cfg["symmetry_cfg"] or {}).get("mirror_loss_coeff")))
     env.close()
     log.info("训练结束：%d 轮，用时 %.1f 小时，最后一份权重 model_%d.pt",
              iterations, (time.monotonic() - started) / 3600.0, iterations)

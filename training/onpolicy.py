@@ -1,22 +1,21 @@
 """在线策略算法的公共部分：采样、每轮重新采样的数据、Lightning 训练骨架。
 
-选修 S03–S05 在 notebook 里一讲加一层：S03 写 `Reinforce(OnPolicy)`，S04 写 `A2C(Reinforce)`，
-S05 写 `PPO(A2C)`。每个算法只写这一讲要讲的两样：`prepare`（一段轨迹 → 训练用的数据）和 `loss`
-（一批数据 → 损失）；PPO 另外改 `batches`，把同一段数据切成小批、反复用几遍。
-与算法无关的部分都在这里，结构和正式训练器 `train_ppo.py` 一一对应：
-`sample_rollout` ↔ `RolloutDataset.sample_rollout`，`RolloutDataset` ↔ 同名的类，
-`OnPolicy` ↔ `PPO` 这个 LightningModule 里与算法无关的部分，`fit` ↔ `build_trainer` 加 `trainer.fit`。
+正式训练器 `train_ppo.py` 的 `PPO` 继承这里的 `OnPolicy`；课上（选修 S03–S05）在 notebook 里一讲加一层，
+S03 写 `Reinforce(OnPolicy)`，S04 写 `A2C(Reinforce)`，S05 写 `PPO(A2C)`，写完的 PPO 与正式训练器是同一套算法。
+一个算法只写两样：`prepare`（一段轨迹 → 训练用的数据）与 `loss`（一批数据 → 损失）；
+PPO 另外改 `batches`，把同一段数据切成小批、反复用几遍。采样时要顺带记别的（回合统计、行为克隆的标记）就覆盖 `collect`。
 """
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import lightning as L
 import torch
+from torch.utils.data import DataLoader, IterableDataset
+
 from env import DuckEnv
 from model import ActorCritic
-from torch.utils.data import DataLoader, IterableDataset
 
 Batch = dict[str, torch.Tensor]
 
@@ -26,7 +25,8 @@ ROLLOUT_KEYS = ("obs", "critic_obs", "actions", "log_probs", "values", "action_m
 
 
 @torch.no_grad()
-def sample_rollout(env: DuckEnv, model: ActorCritic, steps: int) -> Batch:
+def sample_rollout(env: DuckEnv, model: ActorCritic, steps: int,
+                   on_step: Callable[[torch.Tensor, torch.Tensor, dict], None] | None = None) -> Batch:
     """用当前策略让每个并行环境接着走 `steps` 步，记下这一段轨迹。
 
     环境不重置：回合跨轮连续推进，走完的回合由环境自己重开。观测归一化的统计量边走边更新，
@@ -36,6 +36,7 @@ def sample_rollout(env: DuckEnv, model: ActorCritic, steps: int) -> Batch:
         env: 并行仿真环境。
         model: 策略与价值网络。
         steps: 每个环境走几步。
+        on_step: 每走一步之后调用一次，传入这一步的原始奖励、结束标记与环境的附加信息。
 
     Returns:
         `ROLLOUT_KEYS` 里各量，形状是（步数 T，环境数 N，…）：log_probs、action_means、action_stds 是
@@ -47,6 +48,8 @@ def sample_rollout(env: DuckEnv, model: ActorCritic, steps: int) -> Batch:
     for _ in range(steps):
         actions, log_probs, values, means, stds = model.act(obs, critic_obs)
         next_obs, next_critic_obs, rewards, dones, info = env.step(actions)
+        if on_step is not None:
+            on_step(rewards, dones, info)
         step = (obs, critic_obs, actions, log_probs, values, means, stds,
                 rewards, dones.float(), info["time_outs"].float())
         for key, value in zip(ROLLOUT_KEYS, step, strict=True):
@@ -83,7 +86,7 @@ class RolloutDataset(IterableDataset):
 
     def __iter__(self) -> Iterator[Batch]:
         if self.rollout is None:
-            self.rollout = sample_rollout(self.algo.env, self.algo.model, self.algo.steps)
+            self.rollout = self.algo.collect()
         reward = self.rollout["rewards"].mean()
         for batch in self.algo.batches(self.rollout):
             yield {**batch, "reward": reward}
@@ -102,6 +105,10 @@ class OnPolicy(L.LightningModule, ABC):
     def __init__(self, env: DuckEnv, model: ActorCritic, steps: int = 24):
         super().__init__()
         self.env, self.model, self.steps = env, model, steps
+
+    def collect(self) -> Batch:
+        """采这一轮的轨迹。"""
+        return sample_rollout(self.env, self.model, self.steps)
 
     @abstractmethod
     def prepare(self, rollout: Batch) -> Batch:
@@ -135,6 +142,22 @@ class OnPolicy(L.LightningModule, ABC):
         torch.nn.utils.clip_grad_norm_(self.model.critic_parameters(), self.max_grad_norm)
 
 
+def build_trainer(iterations: int, accelerator: str = "gpu", progress_bar: bool = True) -> L.Trainer:
+    """建 Lightning Trainer：一个 epoch = 一轮，每轮重建数据加载器 = 每轮用最新的策略重新采样。
+
+    Args:
+        iterations: 训练几轮。
+        accelerator: 训练用 "gpu"；单测用 "cpu"。
+        progress_bar: 进度条；输出写进日志文件的长训练关掉它（满屏回车符），改由训练器自己按时间报进度。
+
+    Returns:
+        Trainer。
+    """
+    return L.Trainer(accelerator=accelerator, devices=1, max_epochs=iterations, reload_dataloaders_every_n_epochs=1,
+                     enable_checkpointing=False, logger=False, enable_model_summary=False,
+                     enable_progress_bar=progress_bar)
+
+
 def fit(algo: OnPolicy, iterations: int) -> None:
     """训 `iterations` 轮，训完把网络放回仿真所在的设备。
 
@@ -142,7 +165,5 @@ def fit(algo: OnPolicy, iterations: int) -> None:
         algo: 要训练的算法（`OnPolicy` 的子类）。
         iterations: 训练几轮；一轮 = 采一次样 + 用这批数据更新。
     """
-    trainer = L.Trainer(max_epochs=iterations, reload_dataloaders_every_n_epochs=1,
-                        logger=False, enable_checkpointing=False, enable_model_summary=False)
-    trainer.fit(algo)
+    build_trainer(iterations).fit(algo)
     algo.model.to(algo.env.device)  # Lightning 训完会把模块放回 CPU，评测和下一轮采样都在仿真所在的设备上
