@@ -22,10 +22,10 @@ MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，�
 | --- | --- | --- |
 | 主线 01 上手 MiniDuck | [B 站](https://www.bilibili.com/video/BV1rFxe6hEdr) | — |
 | 主线 02 强化学习的数学表达 | [B 站](https://www.bilibili.com/video/BV1xExx6jEGW) | [`notebooks/M02-rl-math/`](notebooks/M02-rl-math) |
-| 主线 03 一集讲清 PPO | — | [`notebooks/M03-ppo/`](notebooks/M03-ppo) |
-| 主线 04 跑通一次训练 | — | [`notebooks/M04-train/`](notebooks/M04-train) |
-| 主线 05 改奖励，训自己的版本 | — | [`notebooks/M05-reward/`](notebooks/M05-reward) |
-| 主线 06 仿真建模与真机对齐 | — | [`notebooks/M06-sim-align/`](notebooks/M06-sim-align) |
+| 主线 03 一集讲清 PPO | — | — |
+| 主线 04 跑通一次训练 | — | — |
+| 主线 05 改奖励，训自己的版本 | — | — |
+| 主线 06 仿真建模与真机对齐 | — | — |
 | 选修 S01 价值函数与贝尔曼方程 | [B 站](https://www.bilibili.com/video/BV1es4G6ZExV)（与 S02 同一集） | — |
 | 选修 S02 时序差分与 DQN | [B 站](https://www.bilibili.com/video/BV1es4G6ZExV)（与 S01 同一集） | [`notebooks/S02-td-dqn/`](notebooks/S02-td-dqn) |
 | 选修 S03 策略梯度与 REINFORCE | — | [`notebooks/S03-policy-gradient/`](notebooks/S03-policy-gradient) |
@@ -40,7 +40,7 @@ MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，�
 | --- | --- |
 | `sim_model/` | 这只鸭子的仿真模型：结构与质量、舵机、供电，按硬件版本组织 |
 | `training/` | 正式代码，`uv sync` 时装进环境，在任何目录都能导入：仿真环境 `env.py`、硬件版本 `hardware.py`（notebook 里的 `import hardware` 就是它）、策略查看器、评测，以及主线 04 开训用的正式训练器 `train_ppo.py` 与 `model.py`。把策略导出到真机的工具收在 `training/export_tools/` |
-| `notebooks/` | 课上带着写的代码，一讲一个文件夹，文件夹名就是讲次（`M06-sim-align/` 是主线 06，`S03-policy-gradient/` 是选修 S03）。环境从 `training/` 导入；策略网络、采样和训练步骤在选修 S03–S05 带着手写，先不用看 `model.py` 和 `train_ppo.py` |
+| `notebooks/` | 课上带着写的代码，一讲一个文件夹，文件夹名就是讲次（`M02-rl-math/` 是主线 02，`S03-policy-gradient/` 是选修 S03）。环境从 `training/` 导入；策略网络、采样和训练步骤在选修 S03–S05 带着手写，先不用看 `model.py` 和 `train_ppo.py` |
 | `policies/` | 出厂策略，与仿真模型按同一个硬件版本对应：`standup`（起身，舵机出力弱时也翻得过身）、`velstand-flat`（走路，在坡上训过）、`sitstand`（坐站）、`ground-pick`（捡东西）、`ball-kick`（踢球）、`roulade`（翻滚）；`*.mdp` 是传给机器人的文件，仿真器也直接跑它 |
 | `firmware/0.9.1/` | 编译好的固件：六个 `.bin` 文件和一份烧写地址，不用自己编译 |
 | `firmware/tools/` | 电脑端工具：把策略和音频转成板上格式、上传到机器人 |
