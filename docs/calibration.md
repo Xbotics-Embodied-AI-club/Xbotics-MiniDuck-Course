@@ -2,7 +2,9 @@
 
 散件装好后，或更换舵机、重新装舵盘后，需要做上电标定。收到已标定的整机且没有拆动关节，可以直接看[基础使用](basic-use.md)。
 
+:::{container} duck-note
 **没按「启动」，小鸭子上电后也可能自动起身。** 未标定或拆动过舵盘的整机，打开电源开关前就要用支架托稳机身，让脚离地、关节四周留空，手避开活动部件。
+:::
 
 标定是把每个关节在**装配零位**时的读数记下来。装配零位是下图里的机械参考姿态，不是遥控时的站立姿态；也不是在网页上把旧读数调到 `0°`。
 
@@ -10,12 +12,25 @@
 
 ## 逐个记录零位
 
+<div class="duck-shots">
+  <figure>
+    <img src="_static/deck/calibration-start.webp" width="780" height="242" loading="lazy" alt="标定页，黄色框标出开始标定按钮">
+    <figcaption><strong>① 开始标定</strong><br>在遥控页卸力后再进入。</figcaption>
+  </figure>
+  <figure>
+    <img src="_static/deck/calibration-record.webp" width="780" height="454" loading="lazy" alt="标定页，黄色框标出记录按钮，下方是已记录的关节">
+    <figcaption><strong>② 逐个记录</strong><br>摆到零位，点记录，确认这一行出现勾。</figcaption>
+  </figure>
+  <figure>
+    <img src="_static/deck/calibration-save.webp" width="780" height="242" loading="lazy" alt="标定页，黄色框标出保存按钮">
+    <figcaption><strong>③ 核对方向后保存</strong><br>保持标定模式完成点动，再保存。</figcaption>
+  </figure>
+</div>
+
 1. 确认机身已经架稳，再按[上电与连接](power-on.md)开机、连热点。打开遥控页；如果按钮显示「卸力」，点它并确认，等页面显示「已卸力」。如果已显示「待机」或「已卸力」，不要点「启动」。卸力后小鸭子不能自己支撑。
 2. 打开「标定」页（`http://192.168.4.1:82`），点「开始标定」并确认。页面显示「标定中」。
 3. 看页面选中的编号与关节名称，用手把对应关节摆到图示零位，扶稳后点「记录」。看到该关节行出现 `✓` 才算记录成功，页面会自动选中下一号。也可以点列表中的关节行重新选择。
 4. 首次标定要等 1–15 号全部打勾。先保持「标定中」，按下一节核对方向，再保存。
-
-![标定网页示例：1–7 号已记录，当前选中 8 号左髋俯仰](images/calibration-record.png){w=360px}
 
 ## 用「点动」核对方向
 
@@ -23,7 +38,12 @@
 
 下图按标定页上的编号排列。1–14 号每组左边是装配零位，右边是向正方向转过一点后的样子；橙色是随该关节转动的部分。
 
+<details class="duck-panel">
+  <summary>展开 1–14 号关节的零位与方向对照图</summary>
+
 ![1–14 号关节的装配零位与点动方向](images/calibration-joint-directions.png)
+
+</details>
 
 {download}`下载关节方向大图 <images/calibration-joint-directions.png>`
 

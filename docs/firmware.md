@@ -2,10 +2,18 @@
 
 固件和策略分开更新。固件用 USB 线烧写，策略在网页上传就行，不用接电脑线。
 
-| 要做的事 | 怎么做 | 需要 |
-| --- | --- | --- |
-| 换一份策略 | [网页更新策略](#网页更新策略) | 手机或电脑 |
-| 更新固件 | [烧写固件](#烧写固件) | Windows 电脑、USB-C 数据线 |
+::::{container} duck-grid
+:::{container} duck-card
+[网页更新策略](#网页更新策略)
+
+只换动作模型：手机或电脑连小鸭子的热点即可。
+:::
+:::{container} duck-card
+[烧写固件](#烧写固件)
+
+刷程序或初始化新板：需要 Windows 电脑和 USB-C 数据线。
+:::
+::::
 
 当前版本：固件 {{firmware}}，硬件版本 {{hardware}}。
 
@@ -107,11 +115,18 @@ USB-C 线一头插头板，一头插电脑。打开「设备管理器」→「�
 
 保持 DoNotChgBin 勾选。右下角 COM 选刚才记下的串口号，BAUD 选 921600。
 
-![六行填好后，文件框和地址框都是绿的；COM 选自己电脑上的串口号](images/flash-rows.png){w=320px}
+<figure class="duck-figure">
+  <img src="_static/deck/flash-addresses.webp" width="1100" height="498" loading="lazy" alt="现场课烧写工具截图，六个固件文件与对应地址都已填好并变绿">
+  <figcaption>全套烧写的六行示例。右下角 COM 选刚才在自己电脑上查到的串口号。</figcaption>
+</figure>
 
 ### 烧写
 
-点 START。工具自动让板子进入下载模式，状态块走完后显示「FINISH 完成」。不要点 ERASE：它会擦掉整片 flash，零点标定也会丢失。
+点 START。工具自动让板子进入下载模式，状态块走完后显示「FINISH 完成」。
+
+:::{container} duck-note
+**不要点 ERASE。** 它会擦掉整片 flash，零点标定也会丢失。
+:::
 
 烧完拔掉 USB 线再插上；身体板电源开着的话，关一下再开。
 

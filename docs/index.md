@@ -1,21 +1,51 @@
 # 小鸭子 MiniDuck 使用手册
 
-MiniDuck 是一台高约 25 厘米、质量约 0.79 千克的双足机器人，行走、抗扰动和跌倒恢复都由神经网络控制。
+<div class="duck-hero">
+  <div>
+    <p class="duck-kicker">MINIDUCK · 使用教程</p>
+    <p class="duck-lead">从零件到一只会走的小鸭子</p>
+    <p>MiniDuck 是一台约 25 厘米高、0.79 千克重的双足机器人。跟着手册组装和遥控，再到仿真里看它怎么学会走路。</p>
+    <p><a class="duck-action" href="assembly/index.html">从装配开始</a></p>
+  </div>
+  <img src="_static/deck/hero.webp" width="1000" height="750" fetchpriority="high" alt="现场课渲染图：站立的小鸭子，能看见头、躯干和两侧腿部舵机">
+</div>
 
-![小鸭子 MiniDuck](images/duck-standing.jpg){w=320px}
+## 选一条路线
 
-拿到散件，先照「装配」装起来；拿到装好的小鸭子，从「上电与连接」开始，几分钟就能让它走起来。
+::::{container} duck-grid
+:::{container} duck-card
+[01 · 散件装成整机](assembly/index.md)
 
-| 我想 | 看这里 |
-| --- | --- |
-| 把散件装成一只小鸭子 | [装配](assembly/index.md) |
-| 打开电源，用手机连上它 | [上电与连接](power-on.md) |
-| 自己组装或换过舵机，需要校准关节零位 | [上电标定](calibration.md) |
-| 让它站起来、走路、坐下、听语音命令 | [基础使用](basic-use.md) |
-| 更新固件，或者换一份策略 | [固件与策略更新](firmware.md) |
-| 在电脑上看它在仿真器里走 | [仿真器](simulator.md) |
-| 对照版本，看每次更新要做什么 | [版本与更新](versions.md) |
-| 跟着视频学强化学习 | [课程](course/index.md) |
+先看部件和装配动画，再按章节装腿、胯和头。
+:::
+:::{container} duck-card
+[02 · 上电与连接](power-on.md)
+
+连小鸭子的热点，打开遥控和调试页面。
+:::
+:::{container} duck-card
+[03 · 上电标定](calibration.md)
+
+自己组装或换过舵机，先校准关节零位。
+:::
+:::{container} duck-card
+[04 · 基础使用](basic-use.md)
+
+对照遥控界面与动作演示，学会起身、行走和语音操作。
+:::
+:::{container} duck-card
+[05 · 仿真器](simulator.md)
+
+在电脑上跑出厂策略，不需要连接真机。
+:::
+:::{container} duck-card
+[06 · 课程](course/index.md)
+
+看视频，跟着 notebook 从仿真实验走到真机部署。
+:::
+::::
+
+需要维护设备？查看[固件与策略更新](firmware.md)或[版本与更新](versions.md)。
 
 ## 当前版本
 

@@ -2,17 +2,29 @@
 
 所有动作都在遥控页 `http://192.168.4.1` 上操作。
 
-![遥控页：顶部是状态条，下面是移动摇杆、平移滑块、头部摇杆和按钮](images/web-remote.jpg){w=360px}
-
 ## 站起来
 
 把小鸭子放在平地上，四周留出空地，手在旁边虚扶。点「启动」并确认，它在约 3 秒内缓缓起身到站立姿态，随后由策略接管。状态条依次显示「起身中」「站立」。
+
+<figure class="duck-figure">
+  <video class="duck-motion" controls muted playsinline preload="none" width="540" height="540" poster="_static/deck/stand.webp" src="_static/deck/stand.mp4" aria-label="仿真演示：小鸭子起身站稳"></video>
+  <figcaption>现场课仿真演示 · 从放松姿态起身，到双脚站稳。</figcaption>
+</figure>
 
 这个按钮同时也是卸力开关：站立时显示「卸力」，卸力后显示「启动」。卸力会让全身关节立刻放松，所以要先扶住它，或者放到架子上，再点「卸力」。
 
 ## 走路
 
-![行走时的遥控页：状态条显示「行走」](images/web-remote-walk.jpg){w=360px}
+<div class="duck-split">
+  <figure class="duck-figure duck-phone">
+    <img src="_static/deck/remote-stick.webp" loading="lazy" alt="遥控页，黄色框标出左侧移动摇杆">
+    <figcaption>左边是移动摇杆。上下推前进或后退，左右推转向。</figcaption>
+  </figure>
+  <figure class="duck-figure">
+    <video class="duck-motion" controls muted playsinline preload="none" width="540" height="540" poster="_static/deck/walk.webp" src="_static/deck/walk.mp4" aria-label="仿真演示：小鸭子前进、转向和停下"></video>
+    <figcaption>现场课仿真演示 · 前进、边走边左转，最后松开摇杆停下。</figcaption>
+  </figure>
+</div>
 
 | 控件 | 操作 | 效果 |
 | --- | --- | --- |

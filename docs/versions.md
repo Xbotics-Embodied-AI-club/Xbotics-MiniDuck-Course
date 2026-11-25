@@ -2,6 +2,19 @@
 
 仓库、硬件、固件和策略各有版本号，它们的对应关系只声明在一处：仓库根目录的 `versions.toml`。
 
+::::{container} duck-grid
+:::{container} duck-card
+当前硬件
+
+{{hardware}} · {{servo}}
+:::
+:::{container} duck-card
+当前固件
+
+{{firmware}} · [更新步骤](firmware.md)
+:::
+::::
+
 | 什么 | 版本号怎么写 | 规则 |
 | --- | --- | --- |
 | 手册与代码 | `v<日期>.<序号>` | 一次发布一个标签，发布后不再改动 |

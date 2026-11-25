@@ -2,6 +2,15 @@
 
 仓库里的仿真模型和你手上的小鸭子是同一个硬件版本 {{hardware}}，出厂策略可以直接在电脑上运行。
 
+<div class="duck-hero">
+  <div>
+    <p class="duck-kicker">MUJOCO · 仿真</p>
+    <p class="duck-lead">在电脑里先跑一遍出厂动作</p>
+    <p>不用连接真机。看策略走路只需 CPU；课程里训练策略时再用显卡。</p>
+  </div>
+  <img src="_static/deck/simulator.webp" width="800" height="600" alt="现场课仿真渲染：小鸭子站在网格地面上">
+</div>
+
 ## 安装
 
 需要 [uv](https://docs.astral.sh/uv/)。第一次安装要下载不少依赖，需要几分钟。
@@ -12,15 +21,16 @@ cd Xbotics-MiniDuck-Course
 uv sync
 ```
 
-看策略用 CPU 就够。
-
 ## 看出厂策略走路
 
 ```bash
 uv run python training/run_policy_viewer.py --skill velstand-flat
 ```
 
-![MuJoCo 窗口里的小鸭子](images/viewer-walk.jpg)
+<figure class="duck-figure">
+  <video class="duck-motion" controls muted playsinline preload="none" width="540" height="540" poster="_static/deck/walk.webp" src="_static/deck/walk.mp4" aria-label="小鸭子仿真行走动画"></video>
+  <figcaption>先看动作效果，再运行上面的命令；实际窗口的按键见下表。</figcaption>
+</figure>
 
 弹出 MuJoCo 窗口后，在运行这条命令的终端里按键控制：
 
