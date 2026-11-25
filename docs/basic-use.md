@@ -17,7 +17,7 @@
 
 <div class="duck-split">
   <figure class="duck-figure duck-phone">
-    <img src="_static/deck/remote-stick.webp" loading="lazy" alt="遥控页，黄色框标出左侧移动摇杆">
+    <img src="_static/deck/remote-stick.webp" width="555" height="1200" loading="lazy" alt="遥控页，黄色框标出左侧移动摇杆">
     <figcaption>左边是移动摇杆。上下推前进或后退，左右推转向。</figcaption>
   </figure>
   <figure class="duck-figure">

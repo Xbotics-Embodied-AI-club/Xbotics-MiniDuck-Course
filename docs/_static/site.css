@@ -31,7 +31,7 @@ html[data-theme="dark"] .bd-article {
     margin: 1.25rem 0;
     align-items: start;
 }
-.duck-hero, .duck-split { grid-template-columns: 1fr 1fr; }
+.duck-hero, .duck-split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .duck-hero {
     align-items: center;
     padding: clamp(1rem, 3vw, 1.8rem);
@@ -48,7 +48,9 @@ html[data-theme="dark"] .bd-article {
     line-height: 1.35;
 }
 .duck-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.duck-grid-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.duck-grid-three, .duck-shots {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+}
 .duck-grid { align-items: stretch; }
 .bd-article :is(.duck-card, .duck-panel, .duck-shots figure) {
     min-inline-size: 0;
@@ -85,7 +87,7 @@ html[data-theme="dark"] .bd-article {
     background: var(--duck-warm);
 }
 .duck-note p:last-child { margin-bottom: 0; }
-.duck-shots { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+.duck-shots { align-items: stretch; }
 .duck-shots figure { margin: 0; }
 .duck-shots img { width: 100%; height: auto; border-radius: .5rem; }
 .bd-article figure figcaption {
@@ -123,8 +125,7 @@ html[data-theme="dark"] .bd-article {
 .bd-article code.docutils .pre { white-space: normal; overflow-wrap: anywhere; }
 
 @media (max-width: 700px) {
-    .duck-hero, .duck-split, .duck-grid, .duck-shots {
+    .duck-hero, .duck-split, .duck-grid:not(.duck-grid-three) {
         grid-template-columns: minmax(0, 1fr);
     }
-    .duck-shots figure { max-width: 390px; }
 }

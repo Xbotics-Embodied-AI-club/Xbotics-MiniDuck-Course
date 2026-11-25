@@ -117,7 +117,7 @@ USB-C 线一头插头板，一头插电脑。打开「设备管理器」→「�
 
 <figure class="duck-figure">
   <img src="_static/deck/flash-addresses.webp" width="1100" height="498" loading="lazy" alt="现场课烧写工具截图，六个固件文件与对应地址都已填好并变绿">
-  <figcaption>全套烧写的六行示例。右下角 COM 选刚才在自己电脑上查到的串口号。</figcaption>
+  <figcaption>全套烧写的六行示例：文件名与对应地址都应显示为绿色。</figcaption>
 </figure>
 
 ### 烧写
@@ -127,6 +127,13 @@ USB-C 线一头插头板，一头插电脑。打开「设备管理器」→「�
 :::{container} duck-note
 **不要点 ERASE。** 它会擦掉整片 flash，零点标定也会丢失。
 :::
+
+```{figure} images/flash-rows.png
+:alt: 烧写工具完整主窗口。中间有 DoNotChgBin，左下角是 START、STOP、ERASE，右下角是 COM 和 BAUD。
+:class: duck-figure
+
+看完整窗口：右下角选 COM 和 BAUD，左下角点 START；不要点同一排的 ERASE。
+```
 
 烧完拔掉 USB 线再插上；身体板电源开着的话，关一下再开。
 
