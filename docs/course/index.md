@@ -7,7 +7,7 @@
   <figcaption>现场课 · 从仿真训练，到真机复现。</figcaption>
 </figure>
 
-## 先看这几讲
+<h2>先看这几讲</h2>
 
 ::::{container} duck-grid duck-grid-three
 :::{container} duck-card

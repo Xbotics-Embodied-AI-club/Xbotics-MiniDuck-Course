@@ -10,7 +10,7 @@
   <img src="_static/deck/hero.webp" width="1000" height="750" fetchpriority="high" alt="现场课渲染图：站立的小鸭子，能看见头、躯干和两侧腿部舵机">
 </div>
 
-## 选一条路线
+<h2>选一条路线</h2>
 
 ::::{container} duck-grid
 :::{container} duck-card
