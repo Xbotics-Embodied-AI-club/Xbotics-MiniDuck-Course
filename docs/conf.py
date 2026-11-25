@@ -47,6 +47,9 @@ html_theme_options = {
     "path_to_docs": "docs",
     "use_repository_button": True,
     "use_edit_page_button": True,
+    # Keep only the book theme's article toolbar. PyData binds the first
+    # sidebar toggle, even when its inherited navbar is hidden on phones.
+    "navbar_persistent": [],
     "show_toc_level": 2,
     "show_navbar_depth": 1,
 }
