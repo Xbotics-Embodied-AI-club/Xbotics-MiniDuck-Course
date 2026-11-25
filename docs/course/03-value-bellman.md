@@ -6,4 +6,4 @@
 
 ## 动手
 
-这一讲的代码是 `notebooks/ep03_sarsa_dqn.ipynb`：在悬崖行走上写 SARSA 与 Q 学习，在倒立摆上写 DQN。
+这一讲的代码是 `notebooks/S02-td-dqn/s02_sarsa_dqn.ipynb`：在悬崖行走上写 SARSA 与 Q 学习，在倒立摆上写 DQN。
