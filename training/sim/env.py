@@ -73,7 +73,7 @@ class Skill:
             直接从最终档起），从零训就不是原版的训练方法，所以必须给热启动权重。
         slope: 在坡上训：每个环境的重力各自斜过去，坡度按 `terrain.SlopeSchedule` 取（见 terrain.py）。
         bumpy: 在起伏地面上训（`terrain.GROUNDS[bumpy_ground]`），求解器迭代数照上游崎岖地形的设置。
-        vin_range_v: 训练时舵机电压的随机范围（V），覆盖硬件版本声明的供电；None 照声明（见 servos.build_actuators）。
+        vin_range_v: 旧硬件可用动作自己的弱舵机电压范围；有线束压降模型的硬件按硬件声明。
         bumpy_ground: 起伏地面用 `terrain.GROUNDS` 里的哪一份；只在 `bumpy` 时有用。
         slope_schedule: 坡度怎么取，`terrain.SCHEDULES` 里的哪一份：ramp = 按步数线性抬高上限，adaptive = 每个环境按
             上一个坡上回合的成败升降（自适应版里坡上的环境摔倒就终止，顶推与躺着开局只留给平地环境，见 terrain.py）。
@@ -107,6 +107,10 @@ class Skill:
             新的动作声明。
         """
         return dataclasses.replace(self, reward_weights=tuple((name, float(w)) for name, w in weights.items()))
+
+    def vin_override(self, hardware: Hardware) -> tuple[float, float] | None:
+        """按硬件声明模拟线束压降时，不再叠加旧版的弱舵机电压范围。"""
+        return self.vin_range_v if hardware.supply["load_sag_v_per_nm"] is None else None
 
 
 SKILLS = {s.name: s for s in (
@@ -162,10 +166,8 @@ SKILLS = {s.name: s for s in (
           "get_standup_spec", 7000),
 )}
 
-# 编码器零位误差的随机化范围（弧度，每个环境开训时每个关节抽一个、整个训练不变，只加在 actor 看到的关节角上）。
-# 上游各任务取 ±0.015（约 0.9°）；我们的舵机零位是学员上电后在网页上手动标的，标出来的误差比这大，
-# 取 ±0.05（约 3°），所有动作一样。
-ENCODER_ZERO_ERROR_RAD = 0.05
+# 每个环境独立抽取各关节的人工标定误差；偏差同时作用于编码器读数和电机位置目标。
+ENCODER_ZERO_ERROR_RAD = math.radians(5)
 
 # 照上游：README 的训练命令是 4096 个环境；种子是 runner 配置的默认值。
 NUM_ENVS = int(os.environ.get("MINIDUCK_NUM_ENVS") or 4096)
@@ -375,8 +377,9 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
             f"{skill.upstream_spec_fn} —— 上游改了，先核对它读哪份模型、有没有后处理，再改 SKILLS")
     # 上游的执行器配置是模块级共享对象，换成新对象而不原地改。
     articulation = dataclasses.replace(
-        robot.articulation, actuators=servos.build_actuators(robot.articulation.actuators, hardware,
-                                                             skill.vin_range_v))
+        robot.articulation,
+        actuators=servos.build_actuators(robot.articulation.actuators, hardware, skill.vin_override(hardware)),
+    )
     spec_fn = robot_spec_fn(skill, hardware)
     init_state = robot.init_state
     if hardware.locked_joints:
@@ -900,10 +903,11 @@ class DuckEnv:
         check_trunk_matches_table(self._env.sim.mj_model, hardware.mass_table)
         check_bodies_match_table(self._env.sim.mj_model, hardware.structure_dir / "mass" / "bodies.json")
         check_collisions_kept(robot_spec_fn(skill, hardware), self._env.sim.mj_model)
-        servos.check_actuators(self._env, hardware, skill.vin_range_v)
+        vin_override = skill.vin_override(hardware)
+        servos.check_actuators(self._env, hardware, vin_override)
         check_locked_joints(self._env, hardware, skill)
         log.info("环境就位：%s，%d 个并行环境，硬件 %s，机器人模型 %s（躯干与质量表一致），舵机 %s%s%s",
-                 skill.name, num_envs, hardware.id, skill.robot_xml, servos.describe(hardware, skill.vin_range_v),
+                 skill.name, num_envs, hardware.id, skill.robot_xml, servos.describe(hardware, vin_override),
                  f"，锁死 {', '.join(hardware.locked_joints)}" if hardware.locked_joints else "",
                  f"，奖励权重改了 {dict(skill.reward_weights)}" if skill.reward_weights else "")
         self.device = torch.device(self._env.device)
@@ -1029,7 +1033,7 @@ class DuckEnv:
 
         舵机电压每个执行器组各抽一个，取这个环境里最低的那组。接近标称 = 不低于硬件版本声明电压下限的 95%。
         """
-        if self.skill.vin_range_v is None:
+        if self.skill.vin_override(self.hardware) is None:
             return torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         vin = torch.stack([a.vin_tensor[:, 0] for a in self._env.scene["robot"]._actuators
                            if getattr(a, "vin_tensor", None) is not None]).amin(dim=0)

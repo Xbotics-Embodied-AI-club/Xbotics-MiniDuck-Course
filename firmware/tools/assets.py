@@ -1,6 +1,6 @@
 """MiniDuck 板上文件：把策略、叫声转成固件认的格式与文件名，经热点传到板子上（与网页「文件」页 83 口同一个接口）
 
-    uv run firmware/tools/assets.py policy policies/2026-11-07-hd1910/<模型>                # 导出的策略 → 同目录 <模型>.mdp
+    uv run firmware/tools/assets.py policy policies/2026-11-26-hd1910/<模型>                # 导出的策略 → 同目录 <模型>.mdp
     uv run firmware/tools/assets.py audio 我的叫声.mp3 --as greet_3 [--adpcm]             # WAV/MP3/FLAC/OGG → greet_3.wav（当前目录）
     uv run firmware/tools/assets.py upload velstand-flat.mdp greet_3.wav --reboot         # 先连机器人的热点
     uv run firmware/tools/assets.py ls | rm /audio/greet_3.wav | restore | reboot | check 文件 ...
@@ -59,6 +59,9 @@ POLICY_VERSION = 1
 POLICY_HEADER_BYTES = 128
 POLICY_SLOTS = ("standup", "velstand-flat", "sitstand", "ground-pick", "ball-kick", "roulade")   # 固件的模型，文件名 = 模型名
 POLICY_CORE = POLICY_SLOTS[:3]   # 每个硬件版本都要有；后三个是一次性动作，没训就没有
+POLICY_NAME_MIN = 2
+POLICY_NAME_MAX = 15
+POLICY_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 # 模型取自哪个导出目录（policies/<硬件版本>/<目录>/）：列出的目录都能转成这个模型的文件，出厂文件取靠前的第一个有的。
 # standup 先取 standup-slope（舵机放弱、坡上训的起身，固件 0.9.1 起出厂用它），没有再取全碰撞模型上训的 standup-full、最早的 standup；
 # velstand-flat 先取 velstand-slope（坡上训的走路，0.9.1 起出厂用它），没有再取平地上训的 velstand-flat。
@@ -197,13 +200,23 @@ def read_policy_blob(blob: bytes) -> dict:
 def _policy_source(policy_dir: Path) -> Path:
     headers = sorted(policy_dir.glob("*_int8.h"))
     if len(headers) != 1:
-        raise SystemExit(f"{policy_dir}：要正好一个 *_int8.h（training/export_tools/export_policy.py 的产物），找到 {len(headers)} 个")
+        raise SystemExit(f"{policy_dir}：要正好一个 *_int8.h（training/export/export_policy.py 的产物），找到 {len(headers)} 个")
     return headers[0]
 
 
 def slot_of_dir(name: str) -> str | None:
     """导出目录名 → 它进固件的哪个模型；不进固件时为 None。"""
     return next((slot for slot, dirs in POLICY_SOURCE_DIRS.items() if name in dirs), None)
+
+
+def policy_target_name(name: str) -> str | None:
+    """把已知动作映射到固件槽位，合法自定义动作直接使用自己的目录名。"""
+    slot = slot_of_dir(name)
+    if slot is not None:
+        return slot
+    if POLICY_NAME_MIN <= len(name) <= POLICY_NAME_MAX and POLICY_NAME_RE.fullmatch(name):
+        return name
+    return None
 
 
 def policy_source_dir(hardware: str, slot: str) -> Path | None:
@@ -215,15 +228,15 @@ def convert_policy(policy_dir: Path) -> Path:
     """policies/<硬件版本>/<模型>/ 里导出的 _int8.h → 同目录 <模型>.mdp。硬件版本取目录名，并与 MANIFEST 核对。"""
     policy_dir = policy_dir.resolve()
     hardware_id = policy_dir.parent.name
-    slot = slot_of_dir(policy_dir.name)
+    slot = policy_target_name(policy_dir.name)
     if slot is None:
-        raise SystemExit(f"{policy_dir}：固件的模型只有 {'、'.join(POLICY_SLOTS)}，{policy_dir.name} 不进固件")
+        raise SystemExit(f"{policy_dir}：策略名须为 {POLICY_NAME_MIN}..{POLICY_NAME_MAX} 个 [A-Za-z0-9_-] 字符")
     manifest = json.loads((policy_dir / "MANIFEST.json").read_text(encoding="utf-8"))
     if manifest.get("skill") != policy_dir.name:
         raise SystemExit(f"{policy_dir}：MANIFEST 里的动作是 {manifest.get('skill')}，目录名是 {policy_dir.name}")
     if "hardware" in manifest and manifest["hardware"] != hardware_id:
         raise SystemExit(f"{policy_dir}：MANIFEST 里的硬件版本是 {manifest['hardware']}，目录名是 {hardware_id}")
-    source = _policy_source(policy_dir).read_bytes()
+    source = _policy_source(policy_dir).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
     blob = build_policy_blob(parse_policy_header(source.decode("utf-8")), hardware_id, slot,
                              hashlib.sha256(source).digest())
     read_policy_blob(blob)   # 写之前按读的规则核一遍
@@ -572,9 +585,6 @@ def main() -> None:
 
     if args.cmd == "policy":
         for d in args.dirs:
-            if slot_of_dir(d.name) is None:
-                print(f"跳过 {d}（固件里没有这个模型）")
-                continue
             out = convert_policy(d)
             info = read_policy_blob(out.read_bytes())
             print(f"{out}：{info['hardware']} / {info['slot']}，{info['num_layers']} 层，"

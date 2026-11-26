@@ -2503,6 +2503,24 @@ wheels = [
 ]
 
 [[package]]
+name = "pyduck"
+version = "0.1.0"
+source = { editable = "sdk/pyduck" }
+dependencies = [
+    { name = "requests" },
+    { name = "websocket-client" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
+    { name = "requests", specifier = ">=2.31" },
+    { name = "websocket-client", specifier = ">=1.6" },
+    { name = "websockets", marker = "extra == 'test'", specifier = ">=12" },
+]
+provides-extras = ["test"]
+
+[[package]]
 name = "pygame-ce"
 version = "2.5.8"
 source = { registry = "https://pypi.org/simple" }
@@ -3498,6 +3516,7 @@ dependencies = [
     { name = "numpy" },
     { name = "onnx" },
     { name = "onnxruntime" },
+    { name = "pyduck" },
     { name = "requests" },
     { name = "soundfile" },
     { name = "soxr" },
@@ -3518,6 +3537,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "onnx" },
     { name = "onnxruntime" },
+    { name = "pyduck", editable = "sdk/pyduck" },
     { name = "requests" },
     { name = "soundfile" },
     { name = "soxr" },

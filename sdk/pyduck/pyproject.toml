@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyduck"
+version = "0.1.0"
+description = "MiniDuck 上位机 Python SDK：运动、状态、舵机、调参、文件、策略"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "websocket-client>=1.6",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "websockets>=12"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

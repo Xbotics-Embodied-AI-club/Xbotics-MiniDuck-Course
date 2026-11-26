@@ -1,0 +1,16 @@
+﻿小鸭子 MiniDuck 固件 0.10.5（V0.2 头板，飞特 HD-1910，硬件版本 2026-11-26-hd1910）
+
+乐鑫 Flash 下载工具：ChipType 选 ESP32-S3、WorkMode Develop、LoadMode UART；
+下面每一行一个文件，文件名前面就是地址；勾上 DoNotChgBin（文件原样写入）。
+不勾 DoNotChgBin 时 SPI 设置照编出来的选：SPI SPEED 80MHz，SPI MODE DIO。
+不要点 ERASE：会把整片 flash 擦掉，零点标定、调参、舵机种类配置都没了，之后要全套重烧。
+
+地址       文件                      什么时候要烧
+0x0        0x0_bootloader.bin        新板子；要整块恢复时（26848 字节，sha256 6cffcf4d24295cd4…）
+0x8000     0x8000_partitions.bin     新板子；要整块恢复时（3072 字节，sha256 5885e556542fc12a…）
+0xe000     0xe000_ota_data_initial.bin新板子；要整块恢复时（8192 字节，sha256 7d2c7ac4888bfd75…）
+0x10000    0x10000_firmware.bin      每次更新固件（3127744 字节，sha256 89ecad80ae1be829…）
+0x450000   0x450000_srmodels.bin     新板子；要整块恢复时（3253329 字节，sha256 2ccca44b0f1f1330…）
+0x770000   0x770000_assets.bin       新板子；出厂硬件版本变化；恢复出厂文件（会清掉上传文件和上电记录）（8912896 字节，sha256 ca61375d92ca8e96…）
+
+只更新固件：文件页顶上的固件版本是 0.10.5 或更新且出厂策略已是 2026-11-26-hd1910 时，只勾 0x10000_firmware.bin，零点标定、调参和文件都留着。更早的固件、新板子或要整块恢复：六个全烧。零点标定和调参留着，上传文件和上电记录会清掉，先备份。

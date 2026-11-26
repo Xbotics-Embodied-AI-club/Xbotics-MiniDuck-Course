@@ -36,7 +36,7 @@ from training.sim.hardware import Hardware
 sys.path.insert(0, str(REPO_ROOT / "firmware/tools"))
 from assets import POLICY_HEADER_BYTES, read_policy_blob
 
-DEFAULT_HARDWARE = "2026-11-07-hd1910"
+DEFAULT_HARDWARE = "2026-11-26-hd1910"
 CONTROL_HZ = 50
 DECIMATION = 4
 PHYSICS_DT = 1.0 / (CONTROL_HZ * DECIMATION)
@@ -44,7 +44,7 @@ OBS_DIM = 61
 ACTION_DIM = 14
 SKILL_SCENES = {
     "walk": "scene_walk.xml",
-    "standup": "scene.xml",
+    "standup": "scene_allcollisions.xml",
     "standup-full": "scene_allcollisions.xml",
     "standup-slope": "scene_allcollisions.xml",
     "sitstand": "scene.xml",
@@ -58,7 +58,7 @@ SKILL_SCENES = {
 }
 ROBOT_XML_BY_SKILL = {
     "walk": "robot_walk.xml",
-    "standup": "robot_groundcontact.xml",
+    "standup": "robot_allcollisions.xml",
     "standup-full": "robot_allcollisions.xml",
     "standup-slope": "robot_allcollisions.xml",
     "sitstand": "robot_groundcontact.xml",

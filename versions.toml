@@ -1,26 +1,26 @@
 # 当前版本的唯一声明。教程站的版本信息从这里读。
 
 [course]
-version = "v20261124.01"
+version = "v20261126.01"
 
 [hardware]
-id = "2026-11-07-hd1910"
+id = "2026-11-26-hd1910"
 servo = "飞特 HD-1910"
 servo_key = "feetech/hd1910"
 board = "V0.2 头板 + 身体板"
 mass_kg = 0.7927
 
 [firmware]
-version = "0.9.1"
-dir = "firmware/0.9.1"
+version = "0.10.5"
+dir = "firmware/0.10.5"
 
 [firmware.sha256]
-"0x0_bootloader.bin" = "84bb365666003b051f564d04380d0cf5d9d85c420ddafe9fc863071b49e49bfc"
-"0x10000_firmware.bin" = "21b544c06db5e99feda25f62626cdaf2f2c54d538ab3a7816286227e71e8a670"
+"0x0_bootloader.bin" = "6cffcf4d24295cd400c55ffb82b10012207d7234f9e74dc816c1c0632a3fc32c"
+"0x10000_firmware.bin" = "89ecad80ae1be8291f00bb32bacca0e8033e22f6e301b38a9e8b61bbc4b51ac1"
 "0x450000_srmodels.bin" = "2ccca44b0f1f1330ebdb7d0bc1402733dbb37b355449257f78f49be2fda2afa3"
-"0x770000_assets.bin" = "c82ed1d67e7b652c4b574cceffc72a7e66db353e3417175d37f15e0c3a47ba97"
+"0x770000_assets.bin" = "ca61375d92ca8e96a0881afb1c0a31fd1f512c57cd961b6639cb4bb8d4b5fc3b"
 "0x8000_partitions.bin" = "5885e556542fc12ae24f840164ccee8a9072c89f5b4e8163ea5ed2ceac345c87"
-"0xe000_boot_app0.bin" = "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+"0xe000_ota_data_initial.bin" = "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
 
 [flash_tool]
 name = "乐鑫 Flash 下载工具"
@@ -30,9 +30,9 @@ file = "flash_download_tool_3.9.11.zip"
 sha256 = "c1fbf280aa04cd8fbe725bff74360fb0a7c83fbd49afcaf37f6c14a6575ea9bc"
 
 [policies]
-"standup" = "4278c96ec9b37485f0b80dfdc4b593ea536e69d05adb85f1d127466355952ec9"
-"velstand-flat" = "b99f6873c51c26f46a23a52c88b65f76e766502045ab35bda24c54c0bc186edc"
-"sitstand" = "a9ec85b468e2cb5ef9f72780125b6db92d1deb99e634fa43f70507df293fa8d4"
-"ground-pick" = "d4293080decb9a2f8759983a4063efac769881d041ba73a96ddf6fd551145761"
-"ball-kick" = "604de8218900967972a152d13708a75af9b7a58262d1e18041a628be73e396e3"
-"roulade" = "169311c9b7a1fc3d21861ec7d5bcb2a2107b3c70bf23aec8b4e5366f4c888678"
+"standup" = "48d0bb12665e45749d22ee5469c19e236eafa9ade0755f9e4804b938de3cda06"
+"velstand-flat" = "43a09af63664dd9312c6518de49079afcfdcc1e8d3efadb6dad2ad403b0fdaaf"
+"sitstand" = "36d3d0a37e0a2e20ec9ba6598bac5fa041d3ff8748ea18551d6529b46f75ebe4"
+"ground-pick" = "4df1d035f408e11f4ccf5d2c4ed104d39a9532b7657aa6526fca5fb43d6dbfad"
+"ball-kick" = "515cc9ac55c6aecb799149add0eed73892d6aef429ce030ff08fcdeb40ca5c21"
+"roulade" = "aa558844c210e35d7aa53c9e98606160bfdbba4a8ff0ecd92ab7e58108ca4971"

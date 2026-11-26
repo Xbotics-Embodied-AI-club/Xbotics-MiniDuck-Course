@@ -1,0 +1,6 @@
+# 构建产物（pip install -e / uv build 会生成，不要提交）
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc

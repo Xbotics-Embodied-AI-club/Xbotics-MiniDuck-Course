@@ -1,0 +1,245 @@
+{
+  "checkpoint": "model_500.pt",
+  "closed_loop_eval": {
+    "fp32_torch": {
+      "curriculum_step": 144000,
+      "episodes": 512,
+      "fall_env_fraction": 0.0,
+      "falls": 0,
+      "hardware": "2026-11-26-hd1910",
+      "mean_step_reward": 0.3718225135281682,
+      "num_envs": 512,
+      "skill": "ball-kick",
+      "steps": 250,
+      "terms": {
+        "Curriculum/action_rate_weight": -1.0,
+        "Curriculum/com_range": 0.014999999664723873,
+        "Curriculum/head_com_range": 0.009999999776482582,
+        "Curriculum/push_magnitude": 0.30000001192092896,
+        "Episode_Metrics/mean_action_acc": 0.04413561522960663,
+        "Episode_Reward/action_rate_l2": -0.156229630112648,
+        "Episode_Reward/angular_momentum": -1.6505063626937044e-07,
+        "Episode_Reward/ball_forward_velocity": 11.610252380371094,
+        "Episode_Reward/ball_speed_overshoot": -0.3760763108730316,
+        "Episode_Reward/body_ang_vel": -0.018232205882668495,
+        "Episode_Reward/dof_pos_limits": -0.0030199033208191395,
+        "Episode_Reward/height_stand": 0.9845638275146484,
+        "Episode_Reward/pose_stand_legs": 1.8020191192626953,
+        "Episode_Reward/pose_stand_neck": 0.9171419143676758,
+        "Episode_Reward/self_collisions": -0.00022656249348074198,
+        "Episode_Reward/support_foot_grounded": 1.946936011314392,
+        "Episode_Reward/upright": 1.884023666381836,
+        "Episode_Termination/fell_over": 0.0,
+        "Episode_Termination/nan_state": 0.0,
+        "Episode_Termination/out_of_terrain_bounds": 0.0,
+        "Episode_Termination/time_out": 512.0,
+        "Metrics/twist/error_vel_xy": 0.04357731714844704,
+        "Metrics/twist/error_vel_yaw": 0.16199564933776855
+      }
+    },
+    "int8": {
+      "curriculum_step": 144000,
+      "episodes": 512,
+      "fall_env_fraction": 0.0,
+      "falls": 0,
+      "hardware": "2026-11-26-hd1910",
+      "mean_step_reward": 0.371790471997112,
+      "num_envs": 512,
+      "skill": "ball-kick",
+      "steps": 250,
+      "terms": {
+        "Curriculum/action_rate_weight": -1.0,
+        "Curriculum/com_range": 0.014999999664723873,
+        "Curriculum/head_com_range": 0.009999999776482582,
+        "Curriculum/push_magnitude": 0.30000001192092896,
+        "Episode_Metrics/mean_action_acc": 0.04731347784399986,
+        "Episode_Reward/action_rate_l2": -0.15520815551280975,
+        "Episode_Reward/angular_momentum": -1.6236849376127793e-07,
+        "Episode_Reward/ball_forward_velocity": 11.611909866333008,
+        "Episode_Reward/ball_speed_overshoot": -0.37344905734062195,
+        "Episode_Reward/body_ang_vel": -0.018001321703195572,
+        "Episode_Reward/dof_pos_limits": -0.0029766003135591745,
+        "Episode_Reward/height_stand": 0.9837839007377625,
+        "Episode_Reward/pose_stand_legs": 1.8026338815689087,
+        "Episode_Reward/pose_stand_neck": 0.9167516827583313,
+        "Episode_Reward/self_collisions": -0.00017187499906867743,
+        "Episode_Reward/support_foot_grounded": 1.9458578824996948,
+        "Episode_Reward/upright": 1.8784211874008179,
+        "Episode_Termination/fell_over": 0.0,
+        "Episode_Termination/nan_state": 0.0,
+        "Episode_Termination/out_of_terrain_bounds": 0.0,
+        "Episode_Termination/time_out": 512.0,
+        "Metrics/twist/error_vel_xy": 0.04351263493299484,
+        "Metrics/twist/error_vel_yaw": 0.16025640070438385
+      }
+    },
+    "onnx": {
+      "curriculum_step": 144000,
+      "episodes": 512,
+      "fall_env_fraction": 0.0,
+      "falls": 0,
+      "hardware": "2026-11-26-hd1910",
+      "mean_step_reward": 0.3718014951199293,
+      "num_envs": 512,
+      "skill": "ball-kick",
+      "steps": 250,
+      "terms": {
+        "Curriculum/action_rate_weight": -1.0,
+        "Curriculum/com_range": 0.014999999664723873,
+        "Curriculum/head_com_range": 0.009999999776482582,
+        "Curriculum/push_magnitude": 0.30000001192092896,
+        "Episode_Metrics/mean_action_acc": 0.04419022053480148,
+        "Episode_Reward/action_rate_l2": -0.15651258826255798,
+        "Episode_Reward/angular_momentum": -1.651423957582665e-07,
+        "Episode_Reward/ball_forward_velocity": 11.609454154968262,
+        "Episode_Reward/ball_speed_overshoot": -0.3757181167602539,
+        "Episode_Reward/body_ang_vel": -0.01823773793876171,
+        "Episode_Reward/dof_pos_limits": -0.002991351066157222,
+        "Episode_Reward/height_stand": 0.9846130609512329,
+        "Episode_Reward/pose_stand_legs": 1.8021684885025024,
+        "Episode_Reward/pose_stand_neck": 0.9170419573783875,
+        "Episode_Reward/self_collisions": -0.00022656247892882675,
+        "Episode_Reward/support_foot_grounded": 1.946670413017273,
+        "Episode_Reward/upright": 1.8838398456573486,
+        "Episode_Termination/fell_over": 0.0,
+        "Episode_Termination/nan_state": 0.0,
+        "Episode_Termination/out_of_terrain_bounds": 0.0,
+        "Episode_Termination/time_out": 512.0,
+        "Metrics/twist/error_vel_xy": 0.04360494762659073,
+        "Metrics/twist/error_vel_yaw": 0.1626937985420227
+      }
+    }
+  },
+  "collision_geom_renames": {
+    "battery_box_col": "battery_box_collision",
+    "battery_bracket_col": "battery_bracket_collision"
+  },
+  "files": {
+    "ball-kick.mdp": "515cc9ac55c6aecb799149add0eed73892d6aef429ce030ff08fcdeb40ca5c21"
+  },
+  "hardware": "2026-11-26-hd1910",
+  "hardware_spec": {
+    "description": "实称机体、飞特 HD-1910；体板 6 V 稳压，线束带载时舵机端会降至 5.7 V",
+    "id": "2026-11-26-hd1910",
+    "provenance": {
+      "structure": "沿用实称机体的质量、碰撞模型与舵机参数。",
+      "supply": "大电流时舵机端电压约 5.7–5.8 V。仿真以舵机力矩总量估算负载压降，压降参数覆盖这个量级，不是实测拟合值。",
+      "valid_from": "2026-11-26"
+    },
+    "servo": "feetech/hd1910",
+    "structure": "2026-11-07",
+    "supply": {
+      "load_sag_v_per_nm": [
+        0.08,
+        0.12
+      ],
+      "sag_floor_v": 5.7,
+      "vin_range_v": [
+        5.9,
+        6.1
+      ]
+    }
+  },
+  "int8": {
+    "hostcheck": "ball_kick: policy_int8_selftest 0 mismatches over 34 test vectors; copy (210848 bytes): 0 mismatches, 0 pointers outside",
+    "kernel": "esp-nn esp_nn_fully_connected_per_ch_s8 @ d116020",
+    "open_loop_abs_err_vs_fp32": {
+      "max": 0.3624763488769531,
+      "mean": 0.009312247857451439,
+      "p99": 0.04530460759997368
+    },
+    "test_vectors": 34,
+    "weight_bytes": 198400
+  },
+  "iteration": 500,
+  "mass_table_sha256": "e72abb8afb7a8fd9b199376ec07464b4ce2d23de6a635c0fedf3cc54e42950a8",
+  "onnx": {
+    "input": "obs [1,61]",
+    "max_abs_diff_vs_torch": 8.344650268554688e-07,
+    "metadata": {
+      "action_scale": 1.0,
+      "command_names": [
+        "twist"
+      ],
+      "default_joint_pos": [
+        0.0,
+        -0.08730000257492065,
+        -0.4578999876976013,
+        -0.004900000058114529,
+        0.453000009059906,
+        0.3490999937057495,
+        0.3490999937057495,
+        0.0,
+        0.0,
+        0.0,
+        0.08730000257492065,
+        0.4578999876976013,
+        0.004900000058114529,
+        -0.453000009059906
+      ],
+      "joint_names": [
+        "left_hip_yaw",
+        "left_hip_roll",
+        "left_hip_pitch",
+        "left_knee",
+        "left_ankle",
+        "neck_pitch",
+        "head_pitch",
+        "head_yaw",
+        "head_roll",
+        "right_hip_yaw",
+        "right_hip_roll",
+        "right_hip_pitch",
+        "right_knee",
+        "right_ankle"
+      ],
+      "observation_names": [
+        "base_ang_vel",
+        "projected_gravity",
+        "joint_pos",
+        "joint_vel",
+        "actions",
+        "command",
+        "head_command",
+        "body_command"
+      ]
+    },
+    "opset": 18,
+    "output": "actions [1,14]"
+  },
+  "robot_xml_sha256": "ed9bfe0218ef1d817c5f52179d57ea58ba4316a4b00faf74070da5636635fe6a",
+  "servo": "feetech/hd1910",
+  "servo_spec": {
+    "actuator": {
+      "kp_fw": 5.0,
+      "max_current_a": null,
+      "params_json": "params/hd1910_m6.json"
+    },
+    "description": "飞特 HD-1910（HD1910M）",
+    "model": "hd1910",
+    "provenance": {
+      "actuator": "LuwuDynamics/xgoduck_rl@326d77a 公开的 1910 BAM M6 参数（Apache-2.0，原样未改，见 README.md）。kp_fw=5 与公开训练基线一致；固件把舵机运行 P 写成同一个值、D 写 0（仿真模型里没有 D）。BAM 的飞特控制模型不施加固件限流，所以不声明限流",
+      "valid_from": "2026-10-20"
+    },
+    "vendor": "feetech"
+  },
+  "skill": "ball-kick",
+  "status": "retrained",
+  "task": "Mjlab-BallKick-Flat-MicroDuck",
+  "training_randomization": {
+    "encoder_zero_error_rad": 0.08726646259971647,
+    "num_envs": 4096,
+    "supply": {
+      "load_sag_v_per_nm": [
+        0.08,
+        0.12
+      ],
+      "sag_floor_v": 4.2,
+      "vin_range_v": [
+        4.2,
+        6.1
+      ]
+    }
+  },
+  "upstream_commit": "ceca01706143d729305baa94cbd8ab990979e325"
+}

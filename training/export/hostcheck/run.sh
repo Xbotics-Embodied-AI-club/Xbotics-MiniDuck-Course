@@ -4,7 +4,7 @@
 #
 # esp-nn 钉在与固件相同的 commit；源码拉到 build/（gitignore），不进仓。
 # 用法（仓根目录）：bash training/export/hostcheck/run.sh <头文件目录> <名>
-#   例（导出策略之后）：bash training/export/hostcheck/run.sh policies/2026-11-07-hd1910/standup standup
+#   例（导出策略之后）：bash training/export/hostcheck/run.sh policies/2026-11-26-hd1910/standup standup
 set -euo pipefail
 
 HEADER_DIR="$(cd "$1" && pwd)"

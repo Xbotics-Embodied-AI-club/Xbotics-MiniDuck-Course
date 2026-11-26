@@ -34,6 +34,8 @@ dependencies = [
     "requests",
     "soundfile",
     "soxr",
+    # 上位机 SDK 随仓分发，无需另装。
+    "pyduck",
 ]
 
 # training/ 作为 `training` 包装进环境（可编辑）：在任何目录都能 `from training.sim import DuckEnv`、
@@ -80,3 +82,4 @@ override-dependencies = [
 [tool.uv.sources]
 # 钉具体 commit：走路任务与 PPO 配置取自这一版。
 mjlab-microduck = { git = "https://github.com/pollen-robotics/microduck_rl", rev = "ceca01706143d729305baa94cbd8ab990979e325" }
+pyduck = { path = "sdk/pyduck", editable = true }
