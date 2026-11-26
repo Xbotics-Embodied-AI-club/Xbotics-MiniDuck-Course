@@ -1,6 +1,6 @@
 """评测一份策略，并录一段单只跟拍视频。
 
-评测与录像都接收一个「观测 → 动作」的函数，而不是某种具体的模型：
+评测与录像接收训练用的网络（`ActorCritic`，取它的确定性动作），或任何一个「观测 → 动作」的函数：
 同一套口径既评 PyTorch 权重，也评导出后的 ONNX 与 int8 —— 导出有没有把策略弄坏，
 就看三者在同一批初始状态上的分数是否一致。
 
@@ -14,8 +14,8 @@
 硬件版本跟着权重走（训练设置里记的那一版），不另外指定。
 
 跑法（训练机上，仓根目录）：
-    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/rollout.py            # 评最新一档
-    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/rollout.py model_6000.pt
+    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/evaluate.py            # 评最新一档
+    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/evaluate.py model_6000.pt
 """
 from __future__ import annotations
 
@@ -29,12 +29,13 @@ import mediapy as media
 import numpy as np
 import torch
 
-import hardware
-from env import SEED, DuckEnv, Skill, skill_from_env
-from hardware import Hardware
-from logs import run_cli
-from model import ActorCritic
-from paths import checkpoint_dir, result_dir, run_name
+from training.logs import run_cli
+from training.paths import checkpoint_dir, result_dir, run_name
+from training.ppo.data import STEPS_PER_ITERATION
+from training.ppo.network import ActorCritic
+from training.sim import hardware
+from training.sim.env import SEED, DuckEnv, Skill, skill_from_env
+from training.sim.hardware import Hardware
 
 EVAL_ENVS = 512
 VIDEO_STEPS = 500
@@ -45,6 +46,18 @@ VIDEO_PINNED_SPEED = {"walk": 0.3}
 Policy = Callable[[torch.Tensor], torch.Tensor]
 
 log = logging.getLogger(__name__)
+
+
+def as_policy(policy: ActorCritic | Policy, device) -> Policy:
+    """网络 → 它的确定性动作（并放到仿真所在的设备上；Lightning 训完会把网络挪回 CPU）；函数原样返回。"""
+    if isinstance(policy, ActorCritic):
+        return policy.to(device).act_inference
+    return policy
+
+
+def final_curriculum_step(skill: Skill) -> int:
+    """课程表在这个动作训满轮数时走到的那一档（环境步数）：没给档位时，评测与录像都放在这一档。"""
+    return skill.iterations * STEPS_PER_ITERATION
 
 
 def load_checkpoint(path: Path, device) -> tuple[ActorCritic, dict]:
@@ -94,7 +107,7 @@ def latest_checkpoint(name: str) -> Path:
     return found[-1]
 
 
-def evaluate(policy: Policy, skill: Skill, hw: Hardware, common_step_counter: int,
+def evaluate(policy: ActorCritic | Policy, skill: Skill, hw: Hardware, common_step_counter: int | None = None,
              num_envs=EVAL_ENVS, device="cuda:0") -> dict:
     """按统一口径跑一个完整回合的确定性 rollout，返回评测摘要。
 
@@ -105,16 +118,19 @@ def evaluate(policy: Policy, skill: Skill, hw: Hardware, common_step_counter: in
     汇总出来是逐回合的平均。
 
     Args:
-        policy: 观测 → 动作的函数（确定性）。
+        policy: 训练用的网络，或观测 → 动作的函数（确定性）。
         skill: 动作声明。
         hw: 硬件版本（与权重训练时的一致）。
-        common_step_counter: 课程表对齐到哪一档（checkpoint 里存的那个值）。
+        common_step_counter: 课程表对齐到哪一档（checkpoint 里存的那个值）；不给就是训满轮数时那一档。
         num_envs: 并行环境数。
         device: 仿真所在设备。
 
     Returns:
         评测摘要字典。
     """
+    policy = as_policy(policy, device)
+    if common_step_counter is None:
+        common_step_counter = final_curriculum_step(skill)
     torch.manual_seed(SEED)
     env = DuckEnv(skill, hw, num_envs=num_envs, device=device, seed=SEED)
     try:
@@ -186,16 +202,16 @@ def collect_observations(policy: Policy, skill: Skill, hw: Hardware, common_step
     return np.concatenate(seen, axis=0)
 
 
-def record_video(policy: Policy, skill: Skill, hw: Hardware, common_step_counter: int, path: Path,
-                 num_steps=VIDEO_STEPS, device="cuda:0") -> int:
+def record_video(policy: ActorCritic | Policy, skill: Skill, hw: Hardware, path: Path,
+                 common_step_counter: int | None = None, num_steps=VIDEO_STEPS, device="cuda:0") -> int:
     """单只鸭子跟拍录像；走路钉住直走指令，其余动作按任务自己的分布。
 
     Args:
-        policy: 观测 → 动作的函数。
+        policy: 训练用的网络，或观测 → 动作的函数。
         skill: 动作声明。
         hw: 硬件版本（与权重训练时的一致）。
-        common_step_counter: 课程表对齐到哪一档。
         path: mp4 输出路径。
+        common_step_counter: 课程表对齐到哪一档；不给就是训满轮数时那一档。
         num_steps: 录多少步（50 步 = 1 秒）。
         device: 仿真所在设备。
 
@@ -205,6 +221,9 @@ def record_video(policy: Policy, skill: Skill, hw: Hardware, common_step_counter
     Raises:
         RuntimeError: 一帧都没渲出来（多半是没设 `MUJOCO_GL=egl`）。
     """
+    policy = as_policy(policy, device)
+    if common_step_counter is None:
+        common_step_counter = final_curriculum_step(skill)
     speed = VIDEO_PINNED_SPEED.get(skill.name)
     torch.manual_seed(SEED)
     env = DuckEnv(skill, hw, num_envs=1, device=device, seed=SEED, render=True)
@@ -247,7 +266,7 @@ def main():
     log.info("评测 %s / %s（硬件 %s）：%d 个环境各跑一个回合，课程表对齐到第 %d 步",
              skill.name, ckpt_path.name, hw.id, EVAL_ENVS, counter)
     summary = {"checkpoint": str(ckpt_path), "iteration": ckpt["iteration"],
-               **evaluate(model.act_inference, skill, hw, counter)}
+               **evaluate(model, skill, hw, counter)}
     terms = summary["terms"]
     tracking = ""
     if "Metrics/twist/error_vel_xy" in terms:
@@ -257,7 +276,7 @@ def main():
              summary["falls"], 100 * summary["fall_env_fraction"], tracking)
     video = out / f"{skill.name}-{ckpt['iteration']}.mp4"
     summary["video"] = str(video)
-    summary["video_frames"] = record_video(model.act_inference, skill, hw, counter, video)
+    summary["video_frames"] = record_video(model, skill, hw, video, counter)
     log.info("录像写到 %s（%d 帧，%.0f 秒）", video.name, summary["video_frames"],
              summary["video_frames"] / 50)
     report = out / f"eval-{skill.name}-{ckpt['iteration']}.json"

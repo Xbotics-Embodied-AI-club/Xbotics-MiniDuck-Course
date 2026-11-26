@@ -26,6 +26,8 @@ dependencies = [
     "onnxruntime",
     # 在 notebook 里动手：JupyterLab 与画图；选修 S02 用 gym 的悬崖行走与倒立摆（gymnasium 是 OpenAI Gym 现在的维护版）。
     "jupyterlab",
+    # Lightning 的进度条在装了 rich 时用 rich 画，JupyterLab 里要 ipywidgets 才显示得出来
+    "ipywidgets",
     "gymnasium[toy-text,classic-control]",
     "matplotlib",
     # 电脑端工具（firmware/tools/assets.py）：音频转换、上传到机器人。
@@ -34,15 +36,31 @@ dependencies = [
     "soxr",
 ]
 
-# training/ 装进环境（可编辑），在任何目录都能 import hardware、from env import DuckEnv，notebooks/ 靠这个调用它。
+# training/ 作为 `training` 包装进环境（可编辑）：在任何目录都能 `from training.sim import DuckEnv`、
+# `from training.ppo import PPO`，notebooks/ 靠这个调用它。
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-package-dir = {"" = "training"}
-py-modules = ["distill", "env", "getup", "hardware", "logs", "model", "paths", "rollout", "run_policy_viewer", "terrain", "train_ppo", "transplant", "upright"]
-packages = ["export_tools", "servos"]
+[tool.setuptools.packages.find]
+include = ["training", "training.*"]
+
+# 包里的依赖只朝一个方向：训练入口 → 导出 → 评测、续训 → 网络与 PPO → 仿真 → 路径与日志。
+# 检查：uv run --with import-linter lint-imports
+[tool.importlinter]
+root_package = "training"
+
+[[tool.importlinter.contracts]]
+name = "依赖只朝一个方向"
+type = "layers"
+layers = [
+    "training.train_ppo",
+    "training.export",
+    "training.evaluate | training.resume",
+    "training.ppo",
+    "training.sim",
+    "training.paths | training.logs",
+]
 
 [tool.uv]
 # 下面四条与 mjlab-microduck 的 pyproject 一致 —— uv 只认「工作区根」的 override，

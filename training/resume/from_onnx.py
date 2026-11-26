@@ -2,7 +2,7 @@
 
 上游发布的策略（如 alpha_stand.onnx）只有 ONNX，没有训练 checkpoint。rsl_rl 导出时把观测归一化
 烘进了图里：`actions = MLP((obs − mean) / (std + eps))`，四层全连接、中间三个 ELU。
-我们的模型是同一个结构、同一个 eps（`model.NORMALIZER_EPS`），所以能逐层搬回来：
+我们的模型是同一个结构、同一个 eps（`network.NORMALIZER_EPS`），所以能逐层搬回来：
     mean → actor_normalizer.mean；除数 − eps = std → actor_normalizer.var = std²（源训练里始终不变的观测维
     方差是 0，导出的除数正好等于 eps，反推成 std = 0，与源模型一致）；
     四个 Gemm 的权重与偏置 → actor 的四个线性层。
@@ -20,7 +20,7 @@ import onnxruntime as ort
 import torch
 from onnx import numpy_helper
 
-from model import NORMALIZER_EPS, ActorCritic
+from training.ppo.network import NORMALIZER_EPS, ActorCritic
 
 EXPECTED_OPS = ["Sub", "Div", "Gemm", "Elu", "Gemm", "Elu", "Gemm", "Elu", "Gemm"]
 NUM_CHECK_OBS = 256

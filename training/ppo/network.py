@@ -1,4 +1,4 @@
-"""策略网络与优势估计，结构照上游走路任务的配置。
+"""策略与价值网络，结构照上游走路任务的配置。
 
 上游（microduck_rl 的 `MicroduckRlCfg`）对 actor 与 critic 的声明是同一句话：
 512-256-128 三层隐藏层、ELU、观测在线归一化；actor 输出高斯分布，标准差是一组
@@ -14,36 +14,6 @@ HIDDEN_DIMS = (512, 256, 128)
 INIT_STD = 1.0
 # rsl_rl 的 EmpiricalNormalization 默认值：(x - mean) / (std + eps)。
 NORMALIZER_EPS = 1.0e-2
-
-
-def compute_gae(rewards, dones, values, next_value, gamma, lam):
-    """用广义优势估计（GAE）把一段 rollout 换算成每步的优势与回报目标。
-
-    从后往前递推，遇到回合结束（done）时截断，免得把下一个回合的回报算进上一个回合。
-
-    Args:
-        rewards: 形状 (T, N) 的即时奖励，T 是采样步数，N 是并行环境数。
-        dones: 形状 (T, N)，回合在该步结束则为 1。
-        values: 形状 (T, N, 1)，critic 对每步状态的估值。
-        next_value: 形状 (N, 1)，最后一步之后那个状态的估值。
-        gamma: 折扣因子。
-        lam: GAE 系数。
-
-    Returns:
-        (advantages, returns)。advantages 形状 (T, N)；returns 形状 (T, N, 1)。
-    """
-    rewards = rewards.unsqueeze(-1)
-    dones = dones.unsqueeze(-1)
-    advantages = torch.zeros_like(values)
-    last_advantage = torch.zeros_like(next_value)
-    for step in reversed(range(rewards.shape[0])):
-        next_values = next_value if step == rewards.shape[0] - 1 else values[step + 1]
-        not_done = 1.0 - dones[step]
-        delta = rewards[step] + gamma * next_values * not_done - values[step]
-        last_advantage = delta + gamma * lam * not_done * last_advantage
-        advantages[step] = last_advantage
-    returns = advantages + values
-    return advantages.squeeze(-1), returns
 
 
 class RunningNormalizer(nn.Module):

@@ -15,7 +15,7 @@ from bam.mjlab import BamActuator
 from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
 from mjlab_microduck.actuator.friction_dr_bam import FrictionDRBamActuatorCfg
 
-from hardware import Hardware
+from training.sim.hardware import Hardware
 
 from . import feetech
 

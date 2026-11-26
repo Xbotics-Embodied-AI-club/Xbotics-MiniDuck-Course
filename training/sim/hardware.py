@@ -24,7 +24,7 @@ import os
 import re
 from pathlib import Path
 
-from paths import POLICY_DIR, SIM_MODEL, file_sha256
+from training.paths import POLICY_DIR, SIM_MODEL, file_sha256
 
 HARDWARE_DIR = SIM_MODEL / "hardware"
 STRUCTURE_DIR = SIM_MODEL / "structure"
@@ -58,7 +58,7 @@ class Servo:
 
     @property
     def vendor(self) -> str:
-        """厂家（`feetech`），执行器按它分派到 `training/servos/<厂家>.py`。"""
+        """厂家（`feetech`），执行器按它分派到 `training/sim/servos/<厂家>.py`。"""
         return self.spec["vendor"]
 
     @property

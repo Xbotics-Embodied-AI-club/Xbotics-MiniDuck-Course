@@ -1,8 +1,8 @@
 """Lightweight native MuJoCo viewer for MiniDuck policies (ONNX or the on-board .mdp file).
 
 Windows PowerShell examples, from the repository root:
-    uv run python training/run_policy_viewer.py --skill velstand-flat
-    uv run python training/run_policy_viewer.py --skill velstand-flat --start prone
+    uv run python training/export/viewer.py --skill velstand-flat
+    uv run python training/export/viewer.py --skill velstand-flat --start prone
 """
 from __future__ import annotations
 
@@ -27,11 +27,11 @@ import onnxruntime as ort
 from bam.model import load_model
 from bam.mujoco import MujocoController
 
-import hardware
-from hardware import Hardware
-from export_tools.int8 import policy_from_mdp
-from logs import run_cli
-from paths import POLICY_DIR, REPO_ROOT
+from training.export.int8 import policy_from_mdp
+from training.logs import run_cli
+from training.paths import POLICY_DIR, REPO_ROOT
+from training.sim import hardware
+from training.sim.hardware import Hardware
 
 sys.path.insert(0, str(REPO_ROOT / "firmware/tools"))
 from assets import POLICY_HEADER_BYTES, read_policy_blob
@@ -45,24 +45,41 @@ ACTION_DIM = 14
 SKILL_SCENES = {
     "walk": "scene_walk.xml",
     "standup": "scene.xml",
+    "standup-full": "scene_allcollisions.xml",
+    "standup-slope": "scene_allcollisions.xml",
     "sitstand": "scene.xml",
     "velstand-flat": "scene_allcollisions.xml",
     "velstand-rough-backlash": "scene_backlash.xml",
+    "velstand-slope": "scene_allcollisions.xml",
+    "velstand-slope-dirg": "scene_allcollisions.xml",
+    "ground-pick": "scene.xml",
+    "ball-kick": "scene_ball.xml",
+    "roulade": "scene.xml",
 }
 ROBOT_XML_BY_SKILL = {
     "walk": "robot_walk.xml",
     "standup": "robot_groundcontact.xml",
+    "standup-full": "robot_allcollisions.xml",
+    "standup-slope": "robot_allcollisions.xml",
     "sitstand": "robot_groundcontact.xml",
     "velstand-flat": "robot_allcollisions.xml",
     "velstand-rough-backlash": "robot_allcollisions_backlash.xml",
+    "velstand-slope": "robot_allcollisions.xml",
+    "velstand-slope-dirg": "robot_allcollisions.xml",
+    "ground-pick": "robot_groundcontact.xml",
+    "ball-kick": "robot_groundcontact.xml",
+    "roulade": "robot_groundcontact.xml",
 }
-LOCOMOTION_SKILLS = {"walk", "velstand-flat", "velstand-rough-backlash"}
+LOCOMOTION_SKILLS = {"walk", "velstand-flat", "velstand-rough-backlash",
+                     "velstand-slope", "velstand-slope-dirg"}
+MDP_SLOTS = {"standup-full": "standup", "standup-slope": "standup",
+             "velstand-slope": "velstand-flat", "velstand-slope-dirg": "velstand-flat"}
 STIFF_SOLREF = (-5.0e4, -2.0e2)
 STIFF_SOLIMP = (0.99, 0.9999, 0.001, 0.5, 2.0)
 HELD_KEY_VK = {
     "w": 0x57, "s": 0x53, "a": 0x41, "d": 0x44,
     "j": 0x4A, "l": 0x4C, "space": 0x20,
-    "q": 0x51, "r": 0x52,
+    "q": 0x51, "r": 0x52, "c": 0x43,
 }
 POSIX_INITIAL_HOLD_SECONDS = 0.65
 POSIX_REPEAT_HOLD_SECONDS = 0.18
@@ -130,7 +147,7 @@ class TerminalKeys:
             }
             with self._lock:
                 self._held = held
-            for key in ("r", "q"):
+            for key in ("r", "q", "c"):
                 if key in held and key not in previous:
                     self.keys.put(key)
             previous = held
@@ -146,7 +163,7 @@ class TerminalKeys:
                 continue
             for value in posix_os.read(self._terminal_fd, 32):
                 key = chr(value).lower()
-                if key in POSIX_MOTION_KEYS or key in {"q", "r"}:
+                if key in POSIX_MOTION_KEYS or key in {"q", "r", "c"}:
                     self._record_posix_key(key, time.monotonic())
 
     def _record_posix_key(self, key: str, now: float):
@@ -154,7 +171,7 @@ class TerminalKeys:
             was_held = self._held_until.get(key, 0.0) > now
             timeout = POSIX_REPEAT_HOLD_SECONDS if was_held else POSIX_INITIAL_HOLD_SECONDS
             self._held_until[key] = now + timeout
-        if key in {"q", "r"} and not was_held:
+        if key in {"q", "r", "c"} and not was_held:
             self.keys.put(key)
 
     def held(self) -> set[str]:
@@ -170,7 +187,7 @@ class TerminalKeys:
 
 
 class Policy:
-    """CPU ONNX policy with metadata emitted by training/export_tools/export_policy.py."""
+    """CPU ONNX policy with metadata emitted by training/export/export_policy.py."""
 
     def __init__(self, path: Path):
         options = ort.SessionOptions()
@@ -216,7 +233,7 @@ class MdpPolicy:
         manifest = json.loads((path.parent / "MANIFEST.json").read_text(encoding="utf-8"))
         onnx_metadata = manifest["onnx"]["metadata"]
         self.metadata = {"robot_xml_sha256": manifest["robot_xml_sha256"]}
-        self.skill = info["slot"]
+        self.skill = manifest.get("skill", info["slot"])
         self.hardware = info["hardware"]
         self.joint_names = onnx_metadata["joint_names"]
         self.action_scale = float(onnx_metadata["action_scale"])
@@ -236,7 +253,7 @@ def resolve_policy_path(skill: str, hw: Hardware, requested: Path | None) -> Pat
         policy_dir = POLICY_DIR / hw.id / skill
         path = policy_dir / f"{skill.replace('-', '_')}.onnx"
         if not path.is_file():
-            path = policy_dir / f"{skill}.mdp"
+            path = policy_dir / f"{MDP_SLOTS.get(skill, skill)}.mdp"
     else:
         path = requested.expanduser().resolve()
     if not path.is_file():
@@ -342,6 +359,12 @@ class Observer:
             self.data.qpos[root:root + 7] = [0.0, 0.0, 0.09, 0.0, 1.0, 0.0, 0.0]
         else:
             self.data.qpos[root:root + 7] = [0.0, 0.0, 0.125, 1.0, 0.0, 0.0, 0.0]
+        if self.policy.skill == "ball-kick":
+            ball_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "ball_free")
+            if ball_id < 0:
+                raise RuntimeError("踢球场景缺少球的自由关节")
+            ball_adr = self.model.jnt_qposadr[ball_id]
+            self.data.qpos[ball_adr:ball_adr + 7] = [0.09, -0.042, 0.035, 1.0, 0.0, 0.0, 0.0]
         self.data.qpos[self.qpos_indices] = self.policy.default_pose
         self.controller.reset(self.data.qpos)
         self.controller.last_ts = self.data.time
@@ -364,7 +387,12 @@ class Observer:
         relative_position = self.data.qpos[self.qpos_indices] - self.policy.default_pose
         joint_velocity = self.data.qvel[self.qvel_indices]
         command = np.zeros(13, dtype=np.float32)
-        if self.active_policy() is self.policy:
+        if self.policy.skill == "ground-pick":
+            phase = 2.0 * np.pi * min(self.data.time / 4.0, 1.0)
+            command[:2] = np.cos(phase), np.sin(phase)
+        elif self.policy.skill == "sitstand":
+            command[0] = self.command[0]
+        elif self.policy.skill in LOCOMOTION_SKILLS and self.active_policy() is self.policy:
             command[:3] = self.command
         observation = np.concatenate((angular_velocity, gravity, relative_position,
                                       joint_velocity, self.last_action, command)).astype(np.float32)
@@ -414,6 +442,8 @@ def main():
     policy = load_policy(policy_path)
     if policy.skill and policy.skill != args.skill:
         parser.error(f"策略技能是 {policy.skill}，当前选择 {args.skill}")
+    if not policy.skill:
+        policy.skill = args.skill
     if policy.hardware and policy.hardware != hw.id:
         parser.error(f"策略硬件是 {policy.hardware}，当前选择 {hw.id}")
     expected_xml_hash = policy.metadata.get("robot_xml_sha256")
@@ -424,7 +454,7 @@ def main():
             log.warning("当前 MJCF 与策略训练时记录的文件不同：%s", xml_path.name)
     standing_policy = load_policy(args.standing.expanduser().resolve()) if args.standing else None
     if standing_policy:
-        if standing_policy.skill and standing_policy.skill != "standup":
+        if standing_policy.skill and standing_policy.skill not in {"standup", "standup-full", "standup-slope"}:
             parser.error("--standing 文件不是 standup 策略")
         if standing_policy.hardware and standing_policy.hardware != hw.id:
             parser.error("standup 策略硬件与 --hardware 不匹配")
@@ -466,7 +496,7 @@ def main():
             step_count = 0
             window_start = time.perf_counter()
             window_steps = 0
-            log.info("按住 W/S 前后、A/D 转向、J/L 横移；松开即停，空格紧急停止，R 重置，Q 退出")
+            log.info("按住 W/S 前后、A/D 转向、J/L 横移；空格停止，C 坐/站，R 重置，Q 退出")
             keyboard_active = False
             while viewer.is_running():
                 tick = time.perf_counter()
@@ -481,10 +511,12 @@ def main():
                         break
                     if key == "r":
                         observer.reset()
+                    if key == "c" and args.skill == "sitstand":
+                        command[0] = 0.0 if command[0] else 1.0
                 if quit_requested:
                     break
                 held = keys.held()
-                if held.intersection({"w", "s", "a", "d", "j", "l", "space"}):
+                if args.skill in LOCOMOTION_SKILLS and held.intersection({"w", "s", "a", "d", "j", "l", "space"}):
                     keyboard_active = True
                 if keyboard_active:
                     set_command_from_held_keys(command, held)

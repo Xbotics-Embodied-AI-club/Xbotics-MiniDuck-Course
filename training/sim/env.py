@@ -39,17 +39,19 @@ import torch
 import warp as wp
 from mjlab.envs import mdp as mjlab_mdp
 from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
-from mjlab.managers import CurriculumTermCfg, EventTermCfg, RewardTermCfg, TerminationTermCfg
+from mjlab.managers import (
+    CurriculumTermCfg,
+    EventTermCfg,
+    RewardTermCfg,
+    TerminationTermCfg,
+)
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.tasks.registry import load_env_cfg
 from mjlab_microduck.robot.microduck_constants import name_servo_collision_geoms
 from mjlab_microduck.tasks import mdp as microduck_mdp
 
-import getup
-import servos
-import terrain
-import upright
-from hardware import Hardware
+from training.sim import getup, servos, terrain, upright
+from training.sim.hardware import Hardware
 
 log = logging.getLogger(__name__)
 
@@ -77,8 +79,8 @@ class Skill:
             上一个坡上回合的成败升降（自适应版里坡上的环境摔倒就终止，顶推与躺着开局只留给平地环境，见 terrain.py）。
         weak_getup: 起身在弱舵机下训（要配 `vin_range_v`）：critic 看舵机力气、奖励记离开仰躺的进度
             （`getup.configure`），还躺在背上的帧不学站立老师（`distill.free_supine`）。
-        reward_weights: 改上游奖励表里几项的权重，（项名, 权重）；空 = 全照上游。由 `MINIDUCK_REWARD_WEIGHTS` 给
-            （`skill_from_env`），课上「改一项奖励权重、训一个自己的版本」用它，不用去改装好的上游包。
+        reward_weights: 改上游奖励表里几项的权重，（项名, 权重）；空 = 全照上游。用 `with_reward_weights` 改
+            （命令行入口读 `MINIDUCK_REWARD_WEIGHTS`），课上「改一项奖励权重、训一个自己的版本」用它，不用去改装好的上游包。
     """
 
     name: str
@@ -95,6 +97,16 @@ class Skill:
     slope_schedule: str = "ramp"
     weak_getup: bool = False
     reward_weights: tuple[tuple[str, float], ...] = ()
+
+    def with_reward_weights(self, **weights: float) -> Skill:
+        """同一个动作，改几项奖励的权重，例：`SKILLS["walk"].with_reward_weights(air_time=0.0)`。
+
+        项名是上游奖励表里的名字，建环境时核对（写错了报错并列出有哪些）；再调一次会把之前改的覆盖掉。
+
+        Returns:
+            新的动作声明。
+        """
+        return dataclasses.replace(self, reward_weights=tuple((name, float(w)) for name, w in weights.items()))
 
 
 SKILLS = {s.name: s for s in (
@@ -150,6 +162,11 @@ SKILLS = {s.name: s for s in (
           "get_standup_spec", 7000),
 )}
 
+# 编码器零位误差的随机化范围（弧度，每个环境开训时每个关节抽一个、整个训练不变，只加在 actor 看到的关节角上）。
+# 上游各任务取 ±0.015（约 0.9°）；我们的舵机零位是学员上电后在网页上手动标的，标出来的误差比这大，
+# 取 ±0.05（约 3°），所有动作一样。
+ENCODER_ZERO_ERROR_RAD = 0.05
+
 # 照上游：README 的训练命令是 4096 个环境；种子是 runner 配置的默认值。
 NUM_ENVS = int(os.environ.get("MINIDUCK_NUM_ENVS") or 4096)
 SEED = 42
@@ -167,25 +184,24 @@ def skill_from_env() -> Skill:
     name = os.environ.get("MINIDUCK_SKILL", "").strip()
     if name not in SKILLS:
         raise RuntimeError(f"MINIDUCK_SKILL={name!r} 不对，可选：{', '.join(SKILLS)}")
-    weights = reward_weights_from_env()
-    return dataclasses.replace(SKILLS[name], reward_weights=weights) if weights else SKILLS[name]
+    return SKILLS[name].with_reward_weights(**reward_weights_from_env())
 
 
-def reward_weights_from_env() -> tuple[tuple[str, float], ...]:
+def reward_weights_from_env() -> dict[str, float]:
     """读 `MINIDUCK_REWARD_WEIGHTS`：逗号分开的「项名=权重」，例如 `air_time=0,upright=2.5`；没给就是空。
 
     项名是上游奖励表里的名字（建环境时核对，写错了报错并列出有哪些）。
 
     Returns:
-        （项名, 权重）。
+        项名 → 权重。
 
     Raises:
         RuntimeError: 某一项不是「项名=数」的写法。
     """
     text = os.environ.get("MINIDUCK_REWARD_WEIGHTS", "").strip()
     if not text:
-        return ()
-    weights = []
+        return {}
+    weights = {}
     for item in text.split(","):
         name, _, value = item.partition("=")
         try:
@@ -194,8 +210,8 @@ def reward_weights_from_env() -> tuple[tuple[str, float], ...]:
             weight = None
         if weight is None or not name.strip():
             raise RuntimeError(f"MINIDUCK_REWARD_WEIGHTS 里的 {item!r} 不是「项名=权重」，例：air_time=0")
-        weights.append((name.strip(), weight))
-    return tuple(weights)
+        weights[name.strip()] = weight
+    return weights
 
 
 def max_iterations(skill: Skill) -> int:
@@ -350,6 +366,8 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
         RuntimeError: 上游这个任务读模型的函数已不是声明里的那个；或 `skill.reward_weights` 里有奖励表没有的项。
     """
     cfg = load_env_cfg(skill.task_id)
+    # 每个上游任务都有这一项随机化；哪天哪个任务没有了，直接 KeyError，不静默跳过
+    cfg.events["encoder_bias"].params["bias_range"] = (-ENCODER_ZERO_ERROR_RAD, ENCODER_ZERO_ERROR_RAD)
     robot = cfg.scene.entities["robot"]
     if robot.spec_fn.__name__ != skill.upstream_spec_fn:
         raise RuntimeError(

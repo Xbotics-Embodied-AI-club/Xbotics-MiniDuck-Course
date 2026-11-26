@@ -24,7 +24,7 @@ from pathlib import Path
 
 import torch
 
-from model import ActorCritic, DeployedActor
+from training.ppo.network import ActorCritic, DeployedActor
 
 log = logging.getLogger(__name__)
 

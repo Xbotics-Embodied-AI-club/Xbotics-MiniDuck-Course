@@ -16,7 +16,7 @@ import dataclasses
 
 import torch
 
-from model import NORMALIZER_EPS, ActorCritic
+from training.ppo.network import NORMALIZER_EPS, ActorCritic
 
 # 逐关节的观测项：维数 = 关节数，顺序 = 关节顺序。
 JOINT_TERMS = ("joint_pos", "joint_vel", "actions")

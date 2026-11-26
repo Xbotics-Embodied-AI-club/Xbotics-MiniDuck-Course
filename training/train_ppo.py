@@ -3,8 +3,10 @@
 训哪个动作由 `MINIDUCK_SKILL` 选，在哪个硬件版本上训由 `MINIDUCK_HARDWARE` 选（`<日期>-<舵机>`，
 见 sim_model/hardware/），这一次叫什么由 `MINIDUCK_RUN_NAME` 给；三者都必须显式给出。
 
-结构：`PPO` 继承 `onpolicy.OnPolicy`，采样、每轮重新采样、Lightning 训练骨架都在那里（选修 S03–S05 在课上
-一层层写出来的就是这一套）；这里写 PPO 的优势、小批与损失，以及上游这套配方另外要的东西。
+结构：`trainer.fit(PPO(net), TrainingData(env, net))`。PPO 的两半在 `ppo.py`（data 一半采样、算优势、切小批，
+model 一半算损失、按 KL 调学习率）；这里只写正式训练在它之上另外要的东西：采样时记回合统计与行为克隆的标记
+（`TrainingData`），每轮更新之后的行为克隆、存盘、记录与进度（`IterationEnd`），续训时先只训 critic（`CriticWarmup`），
+热启动时接上源训练的优化器状态（`RestoreOptimizer`）。
 
 **训练方法与上游一致**，「上游」指 microduck_rl 用 `uv run train Mjlab-Velocity-Flat-MicroDuck`
 跑的那条路（mjlab 1.3.0 的 train 脚本 + rsl_rl 5.0.1 的 PPO）。逐项对齐的清单：
@@ -56,17 +58,29 @@ import os
 import time
 from pathlib import Path
 
+import lightning as L
 import torch
 import wandb
 from mjlab.tasks.registry import load_rl_cfg
 from mjlab_microduck.tasks.distill import PpoWithExpertBcCfg
-from mjlab_microduck.tasks.symmetry import microduck_vel_symmetry
-from tensordict import TensorDict
 
-import getup
-import hardware
-from distill import BcSettings, ExpertBc, free_supine, load_teacher, masked_teacher
-from env import (
+from training.logs import run_cli
+from training.paths import checkpoint_dir, file_sha256, run_name
+from training.ppo.data import STEPS_PER_ITERATION, sample_rollout
+from training.ppo.distill import (
+    BcSettings,
+    ExpertBc,
+    free_supine,
+    load_teacher,
+    masked_teacher,
+)
+from training.ppo.network import ActorCritic
+from training.ppo.ppo import PPO, PPOData
+from training.resume.from_onnx import load_actor_from_onnx
+from training.resume.transplant import layout_of, transplant
+from training.sim import getup, hardware
+from training.sim.env import (
+    ENCODER_ZERO_ERROR_RAD,
     NUM_ENVS,
     OUR_COLLISION_GEOMS,
     SEED,
@@ -77,14 +91,7 @@ from env import (
     skill_from_env,
     upstream_v8,
 )
-from export_tools.from_onnx import load_actor_from_onnx
-from logs import run_cli
-from model import ActorCritic, compute_gae
-from onpolicy import OnPolicy, build_trainer, flat, normalize, sample_rollout
-from paths import checkpoint_dir, file_sha256, run_name
-from transplant import layout_of, transplant
 
-NUM_STEPS_PER_ENV = 24
 SAVE_INTERVAL = 250
 # 上游对称配置里的镜像函数（按名字核对，见 check_upstream_cfg）。
 MIRROR_FUNC = "mjlab_microduck.tasks.symmetry.microduck_vel_symmetry"
@@ -119,7 +126,7 @@ def check_upstream_cfg(skill: Skill) -> dict:
     cfg = load_rl_cfg(skill.task_id)
     algo = cfg.algorithm
     expect = {
-        "num_steps_per_env": (cfg.num_steps_per_env, NUM_STEPS_PER_ENV),
+        "num_steps_per_env": (cfg.num_steps_per_env, STEPS_PER_ITERATION),
         "save_interval": (cfg.save_interval, SAVE_INTERVAL),
         "actor.hidden_dims": (tuple(cfg.actor.hidden_dims), (512, 256, 128)),
         "critic.hidden_dims": (tuple(cfg.critic.hidden_dims), (512, 256, 128)),
@@ -133,12 +140,12 @@ def check_upstream_cfg(skill: Skill) -> dict:
         "use_clipped_value_loss": (algo.use_clipped_value_loss, True),
         "clip_param": (algo.clip_param, PPO.clip_param),
         "entropy_coef": (algo.entropy_coef, PPO.entropy_coef),
-        "num_learning_epochs": (algo.num_learning_epochs, PPO.num_learning_epochs),
-        "num_mini_batches": (algo.num_mini_batches, PPO.num_mini_batches),
+        "num_learning_epochs": (algo.num_learning_epochs, PPOData.num_learning_epochs),
+        "num_mini_batches": (algo.num_mini_batches, PPOData.num_mini_batches),
         "learning_rate": (algo.learning_rate, PPO.learning_rate),
         "schedule": (algo.schedule, "adaptive"),
-        "gamma": (algo.gamma, PPO.gamma),
-        "lam": (algo.lam, PPO.lam),
+        "gamma": (algo.gamma, PPOData.gamma),
+        "lam": (algo.lam, PPOData.lam),
         "desired_kl": (algo.desired_kl, PPO.desired_kl),
         "max_grad_norm": (algo.max_grad_norm, PPO.max_grad_norm),
         "normalize_advantage_per_mini_batch": (algo.normalize_advantage_per_mini_batch, False),
@@ -322,60 +329,11 @@ class EpisodeTracker:
             self.length[done] = 0.0
 
 
-def mirror_loss(model, obs, critic_obs, means):
-    """镜像损失：左右镜像后的观测下的动作均值，与原观测下动作均值的镜像之间的均方差。
+class TrainingData(PPOData):
+    """正式训练的数据：PPO 的数据，采样时顺带记回合统计，以及行为克隆要的每帧标记。"""
 
-    与 rsl_rl 5.0.1 `PPO.update` 的 symmetry 分支（不做数据增广、只加镜像损失）一致：
-    目标一侧不回传梯度。
-
-    Args:
-        model: ActorCritic。
-        obs: 一批 actor 观测（原始，未归一化）。
-        critic_obs: 同一批的 critic 观测（上游镜像函数要它，不镜像）。
-        means: 原观测下的动作均值。
-
-    Returns:
-        标量损失。
-    """
-    n = obs.shape[0]
-    mirrored, _ = microduck_vel_symmetry(None, TensorDict({"actor": obs, "critic": critic_obs}, batch_size=[n]), None)
-    mirrored_means = model.action_distribution(mirrored["actor"][n:].detach()).mean
-    _, target = microduck_vel_symmetry(None, None, means)
-    return torch.nn.functional.mse_loss(mirrored_means, target[n:].detach())
-
-
-class PPO(OnPolicy):
-    """PPO：GAE 优势、5 遍 × 4 个小批、裁剪的损失、按 KL 调学习率；外加镜像、行为克隆、续训、记录与存盘。
-
-    采样、每轮重新采样、Adam、actor 与 critic 分开裁梯度在 `OnPolicy` 里（超参数与上游一致）。
-    """
-
-    clip_param = 0.2
-    value_loss_coef = 1.0
-    entropy_coef = 0.01
-    num_learning_epochs = 5
-    num_mini_batches = 4
-    learning_rate = 1.0e-3
-    gamma = 0.99
-    lam = 0.95
-    desired_kl = 0.01
-    max_grad_norm = 1.0
-
-    def __init__(self, model, env, name, ckpt_dir, training_settings, iterations,
-                 bc: ExpertBc | None = None, optimizer_state: dict | None = None,
-                 critic_warmup_iters: int = 0, mirror_loss_coeff: float | None = None):
-        super().__init__(env, model, NUM_STEPS_PER_ENV)
-        self.run_name = name
-        self.ckpt_dir = ckpt_dir
-        self.training_settings = training_settings
-        self.iterations = iterations
-        self.bc = bc
-        # 热启动时继承源训练的 Adam 状态（同上游：权重、归一化、优化器都留，计数从 0 起）。
-        self.optimizer_state = optimizer_state
-        # 前这么多轮只训 critic（从 ONNX 续训时 critic 是新的）。
-        self.critic_warmup_iters = critic_warmup_iters
-        # 镜像损失的系数；上游这个任务没开对称性时为 None。
-        self.mirror_loss_coeff = mirror_loss_coeff
+    def __init__(self, env: DuckEnv, net: ActorCritic):
+        super().__init__(env, net)
         # 每个环境当前回合累计的奖励与步数，跨轮持续；本轮结束的回合记进 window（每轮换一个新的）
         self.tracker = EpisodeTracker(env.num_envs, env.device)
         self.window = IterationLog()
@@ -383,44 +341,8 @@ class PPO(OnPolicy):
         self.rollout_obs: torch.Tensor | None = None
         self.rollout_anchor_ok: torch.Tensor | None = None
         self.rollout_expert_ok: torch.Tensor | None = None
-        self.latest_kl = torch.zeros(())
-        self.latest_lr = self.learning_rate
-        self.batch_records: list[dict[str, float]] = []
-        self.pending: list[dict[str, float]] = []
-        self.pending_since = time.monotonic()
-        self.wandb_run = None
-
-    def setup(self, stage):
-        """开训前起一个 W&B run（离线、不上屏：出错时它直接抛异常，不靠屏幕提示）。
-
-        Args:
-            stage: Lightning 传入的阶段名，只在 "fit" 阶段做事。
-        """
-        if stage != "fit":
-            return
-        self.wandb_run = wandb.init(project="miniduck", name=self.run_name,
-                                    dir=self.ckpt_dir.as_posix(), config=self.training_settings,
-                                    settings=wandb.Settings(silent=True))
-
-    def on_fit_start(self):
-        """热启动时把源训练的优化器状态装进刚建好的 Adam。"""
-        if self.optimizer_state is not None:
-            self.optimizers().optimizer.load_state_dict(self.optimizer_state)
-
-    def on_train_epoch_start(self):
-        """每轮开始时换一个新的指标列表。"""
-        self.batch_records = []
-
-    def in_critic_warmup(self) -> bool:
-        """本轮是否还在 critic 热身期（只训 critic）。"""
-        return self.current_epoch < self.critic_warmup_iters
 
     def collect(self):
-        """采一轮，顺带记回合统计，以及行为克隆要的每帧标记。
-
-        Returns:
-            这一轮的轨迹。
-        """
         self.window = IterationLog()
         expert_ok = self.env.expert_allowed()   # 舵机电压开训时抽定、重置不重抽，整轮不变
         # 这一帧所在的环境是不是平地。坡在重置时才换，所以第 t 帧取的是第 t 步之前那一刻：
@@ -431,131 +353,57 @@ class PPO(OnPolicy):
             self.tracker.step(rewards, dones, info["mjlab_extras"], self.window)   # 统计记原始奖励（同上游）
             anchor_ok.append(self.env.anchor_allowed())
 
-        rollout = sample_rollout(self.env, self.model, self.steps, on_step)
+        rollout = sample_rollout(self.env, self.net, self.steps, on_step)
         self.rollout_obs = rollout["obs"].flatten(0, 1)
         self.rollout_anchor_ok = torch.stack(anchor_ok[:-1]).flatten()
         self.rollout_expert_ok = expert_ok.repeat(self.steps)
         return rollout
 
-    def prepare(self, rollout):
-        """GAE 优势（整段一起标准化）与价值目标；超时步上补 γ·V(s)。
 
-        Args:
-            rollout: 这一轮的轨迹。
+class IterationEnd(L.Callback):
+    """每轮 PPO 更新之后正式训练要做的事：需要时跑行为克隆，按间隔存盘，指标写进文件与 W&B，够 10 秒报一行进度。"""
 
-        Returns:
-            展平成一条条样本的训练数据。
-        """
-        # 超时只是截断，不是终点：把 critic 对那个状态的估值折扣后补进奖励
-        rewards = rollout["rewards"] + self.gamma * rollout["values"].squeeze(-1) * rollout["time_outs"]
-        advantages, returns = compute_gae(rewards, rollout["dones"], rollout["values"], rollout["next_value"],
-                                          self.gamma, self.lam)
-        return {**flat(rollout, "obs", "critic_obs", "actions", "log_probs", "values", "action_means",
-                       "action_stds"),
-                "advantages": normalize(advantages).flatten(), "returns": returns.flatten(0, 1)}
+    def __init__(self, name: str, ckpt_dir: Path, training_settings: dict, iterations: int,
+                 bc: ExpertBc | None = None):
+        self.run_name = name
+        self.ckpt_dir = ckpt_dir
+        self.training_settings = training_settings
+        self.iterations = iterations
+        self.bc = bc
+        self.pending: list[dict[str, float]] = []
+        self.pending_since = time.monotonic()
+        self.wandb_run = None
 
-    def batches(self, rollout):
-        """把这一轮的数据打散成小批，同一份划分重复用 5 遍（上游的小批生成器在循环外只打乱一次）。
+    def setup(self, trainer, pl_module, stage):
+        # W&B 离线、不上屏：出错时它直接抛异常，不靠屏幕提示
+        del trainer, pl_module
+        if stage == "fit":
+            self.wandb_run = wandb.init(project="miniduck", name=self.run_name, dir=self.ckpt_dir.as_posix(),
+                                        config=self.training_settings, settings=wandb.Settings(silent=True))
 
-        Args:
-            rollout: 这一轮的轨迹。
-
-        Yields:
-            一个个小批。
-        """
-        data = self.prepare(rollout)
-        size = len(data["actions"]) // self.num_mini_batches
-        order = torch.randperm(self.num_mini_batches * size, device=data["obs"].device)
-        for _ in range(self.num_learning_epochs):
-            for i in range(self.num_mini_batches):
-                picked = order[i * size:(i + 1) * size]
-                yield {key: value[picked] for key, value in data.items()}
-
-    def loss(self, batch):
-        """一个小批的 PPO 损失。
-
-        Args:
-            batch: 一个小批。
-
-        Returns:
-            总损失。
-        """
-        dist = self.model.action_distribution(batch["obs"])
-        log_probs = dist.log_prob(batch["actions"]).sum(dim=-1)
-        entropy = dist.entropy().sum(dim=-1).mean()
-        values = self.model.value(batch["critic_obs"])
-        with torch.no_grad():
-            old = torch.distributions.Normal(batch["action_means"], batch["action_stds"])
-            self.latest_kl = torch.distributions.kl_divergence(old, dist).sum(dim=-1).mean()
-
-        ratio = torch.exp(log_probs - batch["log_probs"])
-        clipped_ratio = torch.clamp(ratio, 1.0 - self.clip_param, 1.0 + self.clip_param)
-        surrogate = torch.max(-batch["advantages"] * ratio,
-                              -batch["advantages"] * clipped_ratio).mean()
-        value_clipped = batch["values"] + (values - batch["values"]).clamp(-self.clip_param,
-                                                                           self.clip_param)
-        value_loss = torch.max((values - batch["returns"]).pow(2),
-                               (value_clipped - batch["returns"]).pow(2)).mean()
-        if self.in_critic_warmup():
-            # 损失里不含 actor 的项，actor 与标准差拿不到梯度，Adam 不动它们。
-            loss = self.value_loss_coef * value_loss
-        else:
-            loss = surrogate + self.value_loss_coef * value_loss - self.entropy_coef * entropy
-        record = {"surrogate": float(surrogate.detach()), "value_loss": float(value_loss.detach()),
-                  "entropy": float(entropy.detach()), "kl": float(self.latest_kl)}
-        if self.mirror_loss_coeff is not None:
-            mirror = mirror_loss(self.model, batch["obs"], batch["critic_obs"], dist.mean)
-            if not self.in_critic_warmup():
-                loss = loss + self.mirror_loss_coeff * mirror
-            record["symmetry"] = float(mirror.detach())
-        self.batch_records.append(record)
-        return loss
-
-    def on_before_optimizer_step(self, optimizer):
-        """这一步真正迈出去之前，按本小批的 KL 调学习率。
-
-        调的是 Lightning 传进来、真的会被 step 的那个优化器。
-
-        Args:
-            optimizer: Lightning 传入的优化器。
-        """
-        kl = float(self.latest_kl)
-        if self.in_critic_warmup():
-            # actor 不动时 KL 恒为 0，自适应规则会把学习率一路乘到上限；热身期固定在初值。
-            kl = self.desired_kl
-        if kl > self.desired_kl * 2.0:
-            self.latest_lr = max(1.0e-5, self.latest_lr / 1.5)
-        elif 0.0 < kl < self.desired_kl / 2.0:
-            self.latest_lr = min(1.0e-2, self.latest_lr * 1.5)
-        for group in optimizer.param_groups:
-            group["lr"] = self.latest_lr
-
-    def on_train_epoch_end(self):
-        """本轮 PPO 更新完：需要时跑行为克隆，再按间隔存盘，指标写进文件与 W&B，够 10 秒报一行进度。"""
-        iteration = self.current_epoch + 1
-        metrics = {k: sum(r[k] for r in self.batch_records) / len(self.batch_records)
-                   for k in self.batch_records[0]}
+    def on_train_epoch_end(self, trainer, pl_module):
+        data = trainer.datamodule
+        iteration = trainer.current_epoch + 1
+        # PPO 各项损失的本轮平均（`ppo.PPO.loss` 按轮汇总的那几项；进度条上的逐步数字不算）
+        metrics = {key: float(value) for key, value in trainer.callback_metrics.items()
+                   if key not in trainer.progress_bar_metrics}
         if self.bc is not None:
             with torch.enable_grad():
-                metrics.update(self.bc.update(self.rollout_obs, self.rollout_anchor_ok, self.rollout_expert_ok))
+                metrics.update(self.bc.update(data.rollout_obs, data.rollout_anchor_ok, data.rollout_expert_ok))
         if iteration % SAVE_INTERVAL == 0 or iteration == self.iterations:
-            self.save(iteration)
-        metrics.update(self.window.summary())
-        metrics["lr"] = self.latest_lr
-        metrics["action_std"] = float(self.model.std.detach().mean())
+            self.save(trainer, pl_module, iteration)
+        metrics.update(data.window.summary())
+        metrics["lr"] = pl_module.lr
+        metrics["action_std"] = float(pl_module.net.std.detach().mean())
         wandb.log(metrics, step=iteration)
         with (self.ckpt_dir / "metrics.jsonl").open("a", encoding="utf-8") as fh:
             fh.write(json.dumps({"iteration": iteration, **metrics}, sort_keys=True) + "\n")
         self.pending.append(metrics)
         if time.monotonic() - self.pending_since >= SUMMARY_INTERVAL_S:
-            self.log_progress(iteration)
+            self.log_progress(iteration, pl_module)
 
-    def log_progress(self, iteration):
-        """屏幕上报一行进度：报的是自上一行以来这一段的平均，不是开训以来的累计。
-
-        Args:
-            iteration: 当前迭代号。
-        """
+    def log_progress(self, iteration: int, pl_module: PPO):
+        """屏幕上报一行进度：报的是自上一行以来这一段的平均，不是开训以来的累计。"""
         elapsed = time.monotonic() - self.pending_since
         rate = len(self.pending) / elapsed
 
@@ -564,47 +412,56 @@ class PPO(OnPolicy):
             return sum(values) / len(values) if values else None
 
         parts = [f"第 {iteration}/{self.iterations} 轮"]
-        if iteration <= self.critic_warmup_iters:
+        if not pl_module.train_actor:
             parts.append("critic 热身（actor 不动）")
         if mean("episode_length") is not None:
-            parts += [f"回合平均 {mean('episode_length'):.0f} 步",
-                      f"回合奖励 {mean('episode_reward'):.1f}"]
+            parts += [f"回合平均 {mean('episode_length'):.0f} 步", f"回合奖励 {mean('episode_reward'):.1f}"]
         # 只有带速度指令的任务才有这一项；没有就不报，不报成 nan。
         if mean("Metrics/twist/error_vel_xy") is not None:
             parts.append(f"平移跟踪误差 {mean('Metrics/twist/error_vel_xy'):.2f} m/s")
-        parts += [f"学习率 {self.latest_lr:.1e}", f"{rate:.1f} 轮/秒",
+        parts += [f"学习率 {pl_module.lr:.1e}", f"{rate:.1f} 轮/秒",
                   f"预计还要 {(self.iterations - iteration) / rate / 60.0:.0f} 分钟"]
         log.info("%s", " · ".join(parts))
         self.pending = []
         self.pending_since = time.monotonic()
 
-    def save(self, iteration):
-        """存一份可评测、可导出的权重。
-
-        课程表进度（`common_step_counter`）一并存下：评测要把环境对齐到训练到的那一档。
-
-        Args:
-            iteration: 当前迭代号。
-        """
+    def save(self, trainer, pl_module: PPO, iteration: int):
+        """存一份可评测、可导出、可续训的权重；课程表进度一并存下（评测要把环境对齐到训练到的那一档）。"""
         path = self.ckpt_dir / f"model_{iteration}.pt"
         torch.save({
             "iteration": iteration,
-            "common_step_counter": int(self.env.unwrapped.common_step_counter),
-            "actor_critic": self.model.state_dict(),
-            "optimizer": self.optimizers().optimizer.state_dict(),
+            "common_step_counter": int(trainer.datamodule.env.unwrapped.common_step_counter),
+            "actor_critic": pl_module.net.state_dict(),
+            "optimizer": trainer.optimizers[0].state_dict(),
             "training_settings": self.training_settings,
         }, path)
         log.info("存了 %s", path.name)
 
-    def teardown(self, stage):
-        """训练结束后把 W&B run 正常关掉。
-
-        Args:
-            stage: Lightning 传入的阶段名；收尾不分阶段。
-        """
-        del stage
+    def teardown(self, trainer, pl_module, stage):
+        del trainer, pl_module, stage
         if self.wandb_run is not None:
             self.wandb_run.finish()
+
+
+class CriticWarmup(L.Callback):
+    """前几轮只训 critic：续训、移植时 critic 是新建的，它给的优势在头几十轮是噪声，直接拿来更新 actor 会把已学会的动作推散。"""
+
+    def __init__(self, iterations: int):
+        self.iterations = iterations
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        pl_module.train_actor = trainer.current_epoch >= self.iterations
+
+
+class RestoreOptimizer(L.Callback):
+    """热启动：把源训练的 Adam 状态装进刚建好的优化器（同上游：权重、归一化、优化器都继承，计数从 0 起）。"""
+
+    def __init__(self, state: dict):
+        self.state = state
+
+    def on_fit_start(self, trainer, pl_module):
+        del pl_module
+        trainer.optimizers[0].load_state_dict(self.state)
 
 
 def init_policy_from_env(warm_from: Path | None) -> tuple[Path, int] | None:
@@ -694,7 +551,7 @@ def main():
     env = DuckEnv(skill, hw, num_envs=NUM_ENVS, seed=seed)
     if init is not None:
         # 同任务续训：课程表接着源训练走（同上游 resume 恢复 common_step_counter）。
-        env.set_curriculum_step(init[1] * NUM_STEPS_PER_ENV)
+        env.set_curriculum_step(init[1] * STEPS_PER_ITERATION)
     if transplant_from is not None:
         # 移植：源策略已经训到课程表末档，环境也放在那一档。
         env.set_curriculum_step(int(transplant_from[1]["common_step_counter"]))
@@ -705,7 +562,7 @@ def main():
     init_settings = None
     if init is not None:
         init_policy, init_iteration = init
-        normalizer_count = init_iteration * NUM_STEPS_PER_ENV * NUM_ENVS
+        normalizer_count = init_iteration * STEPS_PER_ITERATION * NUM_ENVS
         load_actor_from_onnx(model, init_policy, normalizer_count)
         with torch.no_grad():
             model.std.fill_(FINETUNE_INIT_STD)
@@ -743,7 +600,8 @@ def main():
     training_settings = {
         "run_name": name, "skill": skill.name, "task": skill.task_id, "num_envs": NUM_ENVS,
         "reward_weights": dict(skill.reward_weights),   # MINIDUCK_REWARD_WEIGHTS 改过的几项；空 = 全照上游
-        "max_iterations": iterations, "num_steps_per_env": NUM_STEPS_PER_ENV, "seed": seed,
+        "encoder_zero_error_rad": ENCODER_ZERO_ERROR_RAD,   # 没有这一项的旧权重是按上游的 ±0.015 训的
+        "max_iterations": iterations, "num_steps_per_env": STEPS_PER_ITERATION, "seed": seed,
         "obs_dim": env.obs_dim, "critic_obs_dim": env.critic_obs_dim, "action_dim": env.action_dim,
         "upstream_cfg": upstream_cfg, "upstream_source": upstream_source(),
         **hw.training_record(skill.robot_xml),
@@ -765,12 +623,18 @@ def main():
     log.info("开始训练 %s（%s，硬件 %s）：%d 个并行环境 × %d 轮，种子 %d，权重写到 %s/",
              skill.name, skill.task_id, hw.id, NUM_ENVS, iterations, seed, ckpt_dir.name)
     started = time.monotonic()
-    trainer = build_trainer(iterations, progress_bar=False)
-    trainer.fit(PPO(model, env, name, ckpt_dir, training_settings, iterations, bc, optimizer_state,
-                    # 移植来的 actor 一开训就会走（锁头模型上直接测：不摔、速度照旧），而新建的优化器
-                    # 头两轮就能把它推散（训 2 轮后摔一半），所以同续训一样先只训 critic。
-                    critic_warmup_iters=CRITIC_WARMUP_ITERS if init is not None or transplant_from is not None else 0,
-                    mirror_loss_coeff=(upstream_cfg["symmetry_cfg"] or {}).get("mirror_loss_coeff")))
+    callbacks: list[L.Callback] = [IterationEnd(name, ckpt_dir, training_settings, iterations, bc)]
+    if init is not None or transplant_from is not None:
+        # 移植来的 actor 一开训就会走（锁头模型上直接测：不摔、速度照旧），而新建的优化器
+        # 头两轮就能把它推散（训 2 轮后摔一半），所以同续训一样先只训 critic。
+        callbacks.append(CriticWarmup(CRITIC_WARMUP_ITERS))
+    if optimizer_state is not None:
+        callbacks.append(RestoreOptimizer(optimizer_state))
+    trainer = L.Trainer(accelerator="gpu", devices=1, max_epochs=iterations, reload_dataloaders_every_n_epochs=1,
+                        enable_checkpointing=False, logger=False, enable_model_summary=False,
+                        enable_progress_bar=False, callbacks=callbacks)
+    trainer.fit(PPO(model, mirror_loss_coeff=(upstream_cfg["symmetry_cfg"] or {}).get("mirror_loss_coeff")),
+                TrainingData(env, model))
     env.close()
     log.info("训练结束：%d 轮，用时 %.1f 小时，最后一份权重 model_%d.pt",
              iterations, (time.monotonic() - started) / 3600.0, iterations)

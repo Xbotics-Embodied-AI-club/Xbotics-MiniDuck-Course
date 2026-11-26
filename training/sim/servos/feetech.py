@@ -17,7 +17,10 @@ from pathlib import Path
 
 import torch
 from mjlab.actuator.actuator import ActuatorCmd
-from mjlab_microduck.actuator.friction_dr_bam import FrictionDRBamActuator, FrictionDRBamActuatorCfg
+from mjlab_microduck.actuator.friction_dr_bam import (
+    FrictionDRBamActuator,
+    FrictionDRBamActuatorCfg,
+)
 
 
 class FeetechBamActuator(FrictionDRBamActuator):

@@ -37,7 +37,10 @@ from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.tasks.velocity.mdp import rewards as mdp_rewards
 from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
-from mjlab_microduck.tasks.mdp import VelocityCommandCommandOnly, VelocityCommandCommandOnlyCfg
+from mjlab_microduck.tasks.mdp import (
+    VelocityCommandCommandOnly,
+    VelocityCommandCommandOnlyCfg,
+)
 
 GRAVITY = 9.81
 _ROBOT = SceneEntityCfg("robot")

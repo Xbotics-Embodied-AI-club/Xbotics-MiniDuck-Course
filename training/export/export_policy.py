@@ -18,7 +18,7 @@
    （通用口径；各动作专门的成功率测法在实验目录，不在这里）。
 
 跑法（训练机上，仓根目录）：
-    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/export_tools/export_policy.py [model_6000.pt]
+    MINIDUCK_SKILL=<动作> MINIDUCK_RUN_NAME=<run> uv run python training/export/export_policy.py [model_6000.pt]
 """
 from __future__ import annotations
 
@@ -35,19 +35,19 @@ import onnxruntime as ort
 import torch
 from mjlab.rl.exporter_utils import attach_metadata_to_onnx, get_base_metadata
 
-from env import DuckEnv, Skill, skill_from_env
-from hardware import Hardware
-from export_tools.int8 import load_npz, quantize_actor, save_npz, write_c_header
-from logs import run_cli
-from model import NORMALIZER_EPS, DeployedActor
-from paths import REPO_ROOT, checkpoint_dir, run_name
-from rollout import (
+from training.evaluate import (
     collect_observations,
     evaluate,
     latest_checkpoint,
     load_checkpoint,
     trained_hardware,
 )
+from training.export.int8 import load_npz, quantize_actor, save_npz, write_c_header
+from training.logs import run_cli
+from training.paths import REPO_ROOT, checkpoint_dir, run_name
+from training.ppo.network import NORMALIZER_EPS, DeployedActor
+from training.sim.env import DuckEnv, Skill, skill_from_env
+from training.sim.hardware import Hardware
 
 NUM_TEST_VECTORS = 32
 # ONNX 与 PyTorch 只该差 float32 的舍入：舍入误差与输出的大小成正比，门槛是输出幅度 1 时的 1e-5，
@@ -237,7 +237,7 @@ def main():
     int8_err = np.abs(int8_out - torch_out)
     log.info("写好 %s 与 %s：开环误差均值 %.4f rad，99 分位 %.4f rad",
              header_path.name, npz_path.name, int8_err.mean(), np.percentile(int8_err, 99))
-    hostcheck = subprocess.run(["bash", str(REPO_ROOT / "training/export_tools/hostcheck/run.sh"), str(out_dir),
+    hostcheck = subprocess.run(["bash", str(REPO_ROOT / "training/export/hostcheck/run.sh"), str(out_dir),
                                 c_name], capture_output=True, text=True, check=False)
     if hostcheck.returncode != 0:
         raise RuntimeError(f"主机上的 C 自检没过，{header_path.name} 不可用：\n"
