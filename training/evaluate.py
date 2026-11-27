@@ -41,7 +41,7 @@ EVAL_ENVS = 512
 VIDEO_STEPS = 500
 # 录像时把指令钉住的动作：走路以 0.3 米/秒直走、头与身体取默认姿态。其余动作按任务自己的
 # 指令与初始姿态分布录 —— 站起要从躺着开始、坐站要有坐下的指令，钉住反而录不到。
-VIDEO_PINNED_SPEED = {"walk": 0.3}
+VIDEO_PINNED_SPEED = dict.fromkeys(("walk", "course-walk"), 0.3)
 
 Policy = Callable[[torch.Tensor], torch.Tensor]
 

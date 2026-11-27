@@ -73,7 +73,7 @@ class Skill:
             直接从最终档起），从零训就不是原版的训练方法，所以必须给热启动权重。
         slope: 在坡上训：每个环境的重力各自斜过去，坡度按 `terrain.SlopeSchedule` 取（见 terrain.py）。
         bumpy: 在起伏地面上训（`terrain.GROUNDS[bumpy_ground]`），求解器迭代数照上游崎岖地形的设置。
-        vin_range_v: 旧硬件可用动作自己的弱舵机电压范围；有线束压降模型的硬件按硬件声明。
+        vin_range_v: 没有线束压降模型的旧硬件可用动作自己的等效弱舵机范围；有线束模型时按硬件声明。
         bumpy_ground: 起伏地面用 `terrain.GROUNDS` 里的哪一份；只在 `bumpy` 时有用。
         slope_schedule: 坡度怎么取，`terrain.SCHEDULES` 里的哪一份：ramp = 按步数线性抬高上限，adaptive = 每个环境按
             上一个坡上回合的成败升降（自适应版里坡上的环境摔倒就终止，顶推与躺着开局只留给平地环境，见 terrain.py）。
@@ -109,13 +109,15 @@ class Skill:
         return dataclasses.replace(self, reward_weights=tuple((name, float(w)) for name, w in weights.items()))
 
     def vin_override(self, hardware: Hardware) -> tuple[float, float] | None:
-        """按硬件声明模拟线束压降时，不再叠加旧版的弱舵机电压范围。"""
+        """带线束压降的硬件用声明的稳压范围，不叠加早期按供电模拟的弱舵机工况。"""
         return self.vin_range_v if hardware.supply["load_sag_v_per_nm"] is None else None
 
 
 SKILLS = {s.name: s for s in (
     # 走路：上游部署的那份取自第 3750 轮，playbook 给步态类 4000–6000 轮。
     Skill("walk", "Mjlab-Velocity-Flat-MicroDuck", "robot_walk.xml", "get_walk_spec", 6000),
+    # 课程从零学平地直走，不把起身、转圈和摆头也塞进同一个短训练。
+    Skill("course-walk", "Mjlab-Velocity-Flat-MicroDuck", "robot_walk.xml", "get_walk_spec", 6000),
     # 站起：上游的站立老师（alpha_stand）取自第 9750 轮。上游配方从零训学不会从趴/仰姿势翻身
     # 所以从 alpha_stand.onnx 续训 2000 轮：
     # MINIDUCK_INIT_POLICY=<alpha_stand.onnx> MINIDUCK_INIT_ITERATION=9750。
@@ -166,7 +168,8 @@ SKILLS = {s.name: s for s in (
           "get_standup_spec", 7000),
 )}
 
-# 每个环境独立抽取各关节的人工标定误差；偏差同时作用于编码器读数和电机位置目标。
+# 每个环境独立抽取各关节的标零偏差；偏差同时作用于编码器读数和电机位置目标。
+# 学员肉眼对齐机械零位；六个动作统一用 ±5°。
 ENCODER_ZERO_ERROR_RAD = math.radians(5)
 
 # 照上游：README 的训练命令是 4096 个环境；种子是 runner 配置的默认值。
@@ -377,9 +380,8 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
             f"{skill.upstream_spec_fn} —— 上游改了，先核对它读哪份模型、有没有后处理，再改 SKILLS")
     # 上游的执行器配置是模块级共享对象，换成新对象而不原地改。
     articulation = dataclasses.replace(
-        robot.articulation,
-        actuators=servos.build_actuators(robot.articulation.actuators, hardware, skill.vin_override(hardware)),
-    )
+        robot.articulation, actuators=servos.build_actuators(robot.articulation.actuators, hardware,
+                                                             skill.vin_override(hardware)))
     spec_fn = robot_spec_fn(skill, hardware)
     init_state = robot.init_state
     if hardware.locked_joints:
@@ -419,11 +421,86 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
         if skill.vin_range_v is None:
             raise RuntimeError(f"{skill.name}：weak_getup 要在舵机电压随机（vin_range_v）的训练里用")
         getup.configure(cfg, nominal_v=sum(hardware.supply["vin_range_v"]) / 2)
+    if skill.name == "course-walk":
+        _configure_course_walk(cfg)
     for name, weight in skill.reward_weights:
         if name not in cfg.rewards:
             raise RuntimeError(f"{skill.task_id} 的奖励表里没有 {name!r}，有：{', '.join(cfg.rewards)}")
         cfg.rewards[name].weight = weight
     return cfg
+
+
+_COURSE_TRUNK_FLOOR = 0.075
+_COURSE_STANDING_HEIGHT = 0.116
+
+
+def _course_trunk_height(env: ManagerBasedRlEnv) -> torch.Tensor:
+    """Give a dense upright-height signal without rewarding jumps above HOME."""
+    z = env.scene["robot"].data.root_link_pos_w[:, 2]
+    return ((torch.nan_to_num(z, nan=0.0) - _COURSE_TRUNK_FLOOR)
+            / (_COURSE_STANDING_HEIGHT - _COURSE_TRUNK_FLOOR)).clamp_(0.0, 1.0)
+
+
+def _course_air_time(env: ManagerBasedRlEnv, sensor_name: str, threshold_min: float,
+                     threshold_max: float, command_name: str, command_threshold: float) -> torch.Tensor:
+    """Reward short swing on a planted support foot, not hopping or holding a foot up."""
+    feet = env.scene[sensor_name].data
+    command = env.command_manager.get_command(command_name)
+    assert command is not None and feet.found is not None and feet.current_air_time is not None
+    t = feet.current_air_time
+    single_support = (feet.found > 0).sum(dim=1) == 1
+    swing = ((t > threshold_min) & (t < threshold_max)).any(dim=1)
+    return (single_support & swing & (command[:, 0] > command_threshold)).float()
+
+
+def _configure_course_walk(cfg) -> None:
+    """Make forward steps discoverable before adding balance disturbances."""
+    twist = cfg.commands["twist"]
+    twist.ranges.lin_vel_x = (0.18, 0.40)
+    twist.ranges.lin_vel_y = (0.0, 0.0)
+    twist.ranges.ang_vel_z = (0.0, 0.0)
+    twist.rel_turn_in_place_envs = twist.rel_standing_envs = 0.0
+    # Preserve the observation layout for the same ActorCritic and export path.
+    for name in ("head_pose", "body_pose"):
+        pose = cfg.commands[name]
+        pose.ranges = ((0.0, 0.0),) * len(pose.ranges)
+        del cfg.curriculum[f"{name}_range"]
+    del cfg.curriculum["head_pose_bias_weight"], cfg.rewards["head_pose_bias"]
+    cfg.rewards["head_pose_tracking"].weight = 0.5
+
+    # A crouch at zero speed otherwise collects most of the posture reward and
+    # a large share of the velocity reward without having to balance on one foot.
+    tracking = cfg.rewards["track_linear_velocity"]
+    tracking.weight = 5.0
+    tracking.params["std"] = 0.20
+    cfg.rewards["track_angular_velocity"].weight = 1.0
+    cfg.rewards["trunk_height"] = RewardTermCfg(func=_course_trunk_height, weight=3.0)
+    cfg.terminations["trunk_too_low"] = TerminationTermCfg(
+        func=mjlab_mdp.root_height_below_minimum, params={"minimum_height": _COURSE_TRUNK_FLOOR})
+    cfg.rewards["air_time"].func = _course_air_time
+    cfg.rewards["air_time"].params["threshold_min"] = 0.06
+
+    # These clocks are environment steps; the three milestones are 500, 1000 and 1250 rollout rounds.
+    cfg.curriculum["standing_envs"].params["standing_stages"] = [
+        {"step": 0, "rel_standing_envs": 0.0}, {"step": 12_000, "rel_standing_envs": 0.05},
+    ]
+    cfg.curriculum["action_rate_weight"].params["weight_stages"] = [
+        {"step": 0, "weight": -0.1}, {"step": 12_000, "weight": -0.2}, {"step": 24_000, "weight": -0.3},
+    ]
+    # The inherited broad startup CoM shift acts before the student sees its first stand.
+    # Keep the smaller per-reset curriculum instead, while retaining the real supply and encoder model.
+    del cfg.events["base_com"]
+    for name in ("com_range", "head_com_range"):
+        cfg.curriculum[name].params["range_stages"] = [
+            {"step": 0, "range": 0.003}, {"step": 24_000, "range": 0.006},
+        ]
+    push_stages = [
+        {"step": step, "velocity_range": {"x": (-limit, limit), "y": (-limit, limit)}}
+        for step, limit in ((0, 0.0), (12_000, 0.05), (24_000, 0.10), (30_000, 0.15))
+    ]
+    cfg.events["push_robot"].params["velocity_range"] = push_stages[0]["velocity_range"]
+    cfg.curriculum["push_velocity"] = CurriculumTermCfg(
+        func=microduck_mdp.push_curriculum, params={"event_name": "push_robot", "push_stages": push_stages})
 
 
 def _walk_only_on_slopes(cfg, slope_event: EventTermCfg,
