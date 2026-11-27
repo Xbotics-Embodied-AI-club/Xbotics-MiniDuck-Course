@@ -15,7 +15,9 @@
 
 需要 [uv](https://docs.astral.sh/uv/)。第一次安装要下载不少依赖，需要几分钟。
 
-```bash
+```{code-block} bash
+:class: duck-wrap-code
+
 git clone https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course.git
 cd Xbotics-MiniDuck-Course
 uv sync
@@ -23,8 +25,10 @@ uv sync
 
 ## 看出厂策略走路
 
-```bash
-uv run python training/run_policy_viewer.py --skill velstand-flat
+```{code-block} bash
+:class: duck-wrap-code
+
+uv run python training/export/viewer.py --skill velstand-flat
 ```
 
 <figure class="duck-figure">
@@ -47,8 +51,29 @@ uv run python training/run_policy_viewer.py --skill velstand-flat
 
 坐立策略用第一个指令值区分坐下和站立：`--vx 1` 表示坐下，不带这个参数表示站立。
 
-```bash
-uv run python training/run_policy_viewer.py --skill standup --start prone   # 从趴下的姿势起身
-uv run python training/run_policy_viewer.py --skill sitstand --vx 1         # 坐下
-uv run python training/run_policy_viewer.py --skill sitstand                # 保持站立
+```{code-block} bash
+:class: duck-wrap-code
+
+# 从趴下的姿势起身
+uv run python training/export/viewer.py --skill standup --start prone
+
+# 坐下
+uv run python training/export/viewer.py --skill sitstand --vx 1
+
+# 保持站立
+uv run python training/export/viewer.py --skill sitstand
 ```
+
+## 用 Python 连接真机
+
+在学员仓根目录运行 `uv sync`，会一并安装随仓提供的 `pyduck`。它可以读取小鸭子的状态、控制动作和管理板上文件。
+
+先让电脑连上小鸭子的热点，再从仓库根目录运行只读例程：
+
+```{code-block} bash
+:class: duck-wrap-code
+
+uv run python sdk/pyduck/examples/01_state_and_sensors.py --ip 192.168.4.1
+```
+
+其他用法见 [pyduck 文档与例程](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/tree/main/sdk/pyduck)。

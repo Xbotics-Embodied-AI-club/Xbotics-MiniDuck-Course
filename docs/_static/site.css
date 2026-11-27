@@ -52,6 +52,10 @@ html[data-theme="dark"] .bd-article {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
 }
 .duck-grid { align-items: stretch; }
+.duck-grid.duck-version-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+}
 .bd-article :is(.duck-card, .duck-panel, .duck-shots figure) {
     min-inline-size: 0;
     padding: 1rem;
@@ -123,6 +127,11 @@ html[data-theme="dark"] .bd-article {
 .bd-article .table thead th { background: var(--duck-surface); }
 .bd-article .table td { vertical-align: top; }
 .bd-article code.docutils .pre { white-space: normal; overflow-wrap: anywhere; }
+.bd-article .duck-flash-addresses td:first-child code .pre { white-space: nowrap; }
+.bd-article .duck-wrap-code pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
 
 @media (max-width: 700px) {
     .duck-hero, .duck-split, .duck-grid:not(.duck-grid-three) {

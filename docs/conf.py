@@ -27,6 +27,12 @@ myst_substitutions = {
     "hardware": f"`{versions['hardware']['id']}`",
     "hardware_json": f"`sim_model/hardware/{versions['hardware']['id']}.json`",
     "policy_dir": f"`policies/{versions['hardware']['id']}/<模型>/`",
+    "policy_upload_example": (
+        "```bash\n"
+        "uv run firmware/tools/assets.py upload "
+        f"policies/{versions['hardware']['id']}/velstand-flat/velstand-flat.mdp --reboot\n"
+        "```"
+    ),
     "servo": versions["hardware"]["servo"],
     "board": versions["hardware"]["board"],
     "firmware": versions["firmware"]["version"],

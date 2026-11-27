@@ -19,6 +19,6 @@
 
 ## 动手
 
-这一讲的代码是 `notebooks/M02-rl-math/m02_env.ipynb`。仿真环境跑在显卡上，需要一台带 NVIDIA 显卡的 Linux 电脑。
+打开 [本讲 notebook](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/blob/main/notebooks/M02-rl-math/m02_env.ipynb)。仿真环境跑在显卡上，需要一台带 NVIDIA 显卡的 Linux 电脑。
 
-notebook 里的硬件版本是现行的 `2026-11-07-hd1910`；视频录制时用的是更早的版本号，照 notebook 里的写法运行。
+新版 notebook 使用硬件版本 {{hardware}}。运行时以 notebook 为准，不要照抄视频里的旧版本号。

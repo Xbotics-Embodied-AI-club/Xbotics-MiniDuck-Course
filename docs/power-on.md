@@ -30,16 +30,22 @@
 
 浏览器打开 `http://192.168.4.1:83`，这是文件页。
 
-![文件页：顶部是硬件版本和固件版本，下面是当前策略](images/web-files.jpg){w=320px}
+```{figure} images/web-files.jpg
+:alt: 文件页的版本信息与当前策略表
+:width: 320px
+:class: duck-figure
+
+旧版界面示例：顶部是硬件和固件版本，下方是当前策略。应显示的版本见下文。
+```
 
 检查两处：
 
 - 顶部写着硬件版本 {{hardware}} 和固件版本，当前固件是 {{firmware}}。
-- 「当前策略」表里有 `standup`、`velstand-flat`、`sitstand`、`ground-pick`、`ball-kick`、`roulade` 六个模型，来源都是「出厂」。
+- 「当前策略」表里 `standup`、`velstand-flat`、`sitstand`、`ground-pick`、`ball-kick`、`roulade` 六个模型都应已载入。刚刷过文件区时，六项来源都应为「出厂」。
 
 `standup` 负责站立和倒地起身，`velstand-flat` 负责行走，`sitstand` 负责坐下和起立；`ground-pick`、`ball-kick`、`roulade` 是三个一次性动作：捡东西、踢球、翻滚。
 
-固件低于当前版本时，按[固件与策略更新](firmware.md)升级。
+如果固件或硬件版本与本页不一致，或有模型缺失、来源显示「无」，先不要启动。按[固件与策略更新](firmware.md)烧写全部六个文件。
 
 ## 六个网页
 

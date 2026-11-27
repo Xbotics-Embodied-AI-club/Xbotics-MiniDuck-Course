@@ -2,7 +2,18 @@
 
 仓库、硬件、固件和策略各有版本号，它们的对应关系只声明在一处：仓库根目录的 `versions.toml`。
 
-::::{container} duck-grid
+## 怎么对照
+
+连上小鸭子的热点，打开文件页 `http://192.168.4.1:83`，把顶部的硬件和固件版本与下方卡片对照。
+
+## 当前版本
+
+::::{container} duck-grid duck-version-cards
+:::{container} duck-card
+学员仓
+
+{{course_version}}
+:::
 :::{container} duck-card
 当前硬件
 
@@ -21,16 +32,20 @@
 | 硬件 | `<日期>-<舵机>` | 硬件变了就加一个新版本；策略与固件档案用同一个版本号 |
 | 固件 | `主.次.修订` | 网页顶部显示的就是这个数 |
 
-## 怎么对照
+## 更新日志
 
-连上小鸭子的热点，打开文件页 `http://192.168.4.1:83`，顶部写着硬件版本和固件版本，和下面的当前版本对照。
+### v20261126.01
 
-## 当前版本
+- 硬件版本更新为 `2026-11-26-hd1910`，配套固件为 `0.10.5`。仿真模型和 notebook 已同步。旧版用户请按[烧写固件](firmware.md#烧写固件)烧写全部六个文件。
+- 前滚翻、坐下与起立、踢球换用新策略；站立与倒地起身、走路、捡东西沿用原策略。
+- 学员仓随附 `pyduck`。在仓库根目录执行 `uv sync` 即可安装，见[用 Python 连接真机](simulator.md#用-python-连接真机)。
 
-```{literalinclude} _main/versions.toml
-:language: toml
-```
+### v20261124.01
 
-```{include} _main/CHANGELOG.md
-:heading-offset: 1
-```
+手册新增装配与课程两栏；硬件、固件与策略不变。
+
+### v20261120.01
+
+硬件版本 `2026-11-07-hd1910`，固件 `0.9.1`，配有六个出厂动作。
+
+完整记录见[学员仓更新日志](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/blob/main/CHANGELOG.md)。
