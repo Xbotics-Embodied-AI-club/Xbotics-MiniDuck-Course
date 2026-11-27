@@ -22,11 +22,11 @@
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import logging
 import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -47,7 +47,7 @@ from training.logs import run_cli
 from training.paths import REPO_ROOT, checkpoint_dir, run_name
 from training.ppo.network import NORMALIZER_EPS, DeployedActor
 from training.sim.env import DuckEnv, Skill, skill_from_env
-from training.sim.hardware import Hardware
+from training.sim.hardware import Hardware, load as load_hardware
 
 NUM_TEST_VECTORS = 32
 # ONNX 与 PyTorch 只该差 float32 的舍入：舍入误差与输出的大小成正比，门槛是输出幅度 1 时的 1e-5，
@@ -178,11 +178,26 @@ def main():
     skill = skill_from_env()
     c_name = skill.name.replace("-", "_")
     name = run_name()
-    ckpt_path = checkpoint_dir(name) / sys.argv[1] if len(sys.argv) > 1 else latest_checkpoint(name)
+    parser = argparse.ArgumentParser(description="导出训练权重并核对 ONNX、int8 和闭环结果。")
+    parser.add_argument("checkpoint", nargs="?", help="权重文件名；省略时使用最后一份")
+    parser.add_argument("--output-root", type=Path, help="在该目录下写 <硬件版本>/<动作>/，默认 policies/")
+    parser.add_argument("--target-hardware", help="以同结构、同舵机的新硬件版本作标定和闭环评测")
+    args = parser.parse_args()
+    ckpt_path = checkpoint_dir(name) / args.checkpoint if args.checkpoint else latest_checkpoint(name)
     model, ckpt = load_checkpoint(ckpt_path, "cpu")
     settings = ckpt["training_settings"]
-    hw = trained_hardware(ckpt)
-    out_dir = hw.policies_dir / skill.name
+    trained_id = settings["hardware"]
+    if args.target_hardware is None:
+        hw = trained_hardware(ckpt)
+    else:
+        hw = load_hardware(args.target_hardware)
+        trained_spec = settings["hardware_spec"]
+        robot_xml = settings["robot_xml"]
+        reference = hw.training_record(robot_xml)
+        if (hw.spec["structure"] != trained_spec["structure"] or hw.servo.key != trained_spec["servo"]
+                or reference["robot_xml_sha256"] != settings["robot_xml_sha256"]):
+            parser.error("目标硬件须与训练权重使用同一机体结构、舵机和机器人 MJCF")
+    out_dir = (args.output_root / hw.id if args.output_root else hw.policies_dir) / skill.name
     counter = int(ckpt["common_step_counter"])
     out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path, header_path, npz_path = (out_dir / f"{c_name}.onnx", out_dir / f"{c_name}_int8.h",
@@ -199,10 +214,12 @@ def main():
         "upstream_commit": settings["upstream_source"]["vcs_info"]["commit_id"],
         # 从已发布策略续训的才有这一项（哪个 ONNX、它在源训练里的第几轮）。
         "init_from_policy": settings.get("init_from_policy"),
+        "trained_hardware": trained_id,
+        "export_hardware_spec": hw.spec,
+        "export_mass_table_sha256": sha256(hw.mass_table),
     }
 
-    log.info("导出 %s / %s（第 %d 轮）到 policies/%s/%s/", name, ckpt_path.name, ckpt["iteration"],
-             hw.id, skill.name)
+    log.info("导出 %s / %s（第 %d 轮）到 %s", name, ckpt_path.name, ckpt["iteration"], out_dir)
 
     # ① ONNX
     actor = DeployedActor(model).cpu()

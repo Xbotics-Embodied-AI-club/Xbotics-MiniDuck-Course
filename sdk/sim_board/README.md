@@ -27,6 +27,33 @@ with pyduck.Duck.connect("127.0.0.1") as duck:
     print(st.state_cn, st.tof_mm, st.loop_hz)
 ```
 
+## 运行自己训练的捡取策略
+
+沿用主线 05 的 `MINIDUCK_CKPT_ROOT`。`MINIDUCK_RUN_NAME` 指向自己的 ground-pick 训练目录，`CKPT` 是其中的权重文件名，`OUT` 指向独立导出目录，不覆盖出厂策略：
+
+```sh
+MINIDUCK_SKILL=ground-pick uv run --locked python training/export/export_policy.py "$CKPT" --output-root "$OUT"
+uv run --locked python firmware/tools/assets.py policy --as mypick "$OUT/2026-11-26-hd1910/ground-pick"
+```
+
+导出包含 GPU 仿真标定与闭环评测。使用旧版本硬件训出的权重时，可用 `--target-hardware 2026-11-26-hd1910` 在同机体结构、同舵机的新版上重新标定和评测；清单会保留训练硬件与导出目标。`--as mypick` 只改变上传时的策略名，不改动作的导出清单，也不替换出厂 `ground-pick`。
+
+从刚启动、尚未站起的仿真板开始。把 `mdp` 换成打包命令输出的路径：
+
+```python
+from pyduck import Duck  # 导入 SDK
+
+mdp = "导出目录/2026-11-26-hd1910/ground-pick/mypick.mdp"  # 策略路径
+with Duck.connect("127.0.0.1") as duck:  # 连接本机仿真
+    duck.policy.upload(mdp)  # 在待机时上传
+    duck.policy.load("mypick")  # 按自定义名热载
+    duck.motion.stand()  # 起身
+    duck.state.wait_for(lambda st: st.state_name == "STANDING", timeout=15)  # 等站稳
+    duck.policy.run("mypick", seconds=10)  # 运行十秒
+```
+
+自定义策略运行时，板子不会替它推进出厂动作的相位。因此同一份捡取权重按自定义名运行时，能看到它低头，但不能据此演示带物体的完整拾取。
+
 ## 接口范围
 
 支持状态、事件、站立/坐下/卸力、运动与出厂一次性动作，以及 `.mdp` 文件的列表、上传、热载、运行、停止和删除。只有待机或卸力时才可写文件；策略上传保存在内存，进程退出后清空。挡板场景不含球，踢球只执行动作。电压是仿真标称值；不提供 UDP、真机外设诊断或固件录像下载。

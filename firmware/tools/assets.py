@@ -1,6 +1,7 @@
 """MiniDuck 板上文件：把策略、叫声转成固件认的格式与文件名，经热点传到板子上（与网页「文件」页 83 口同一个接口）
 
     uv run firmware/tools/assets.py policy policies/2026-11-26-hd1910/<模型>                # 导出的策略 → 同目录 <模型>.mdp
+    uv run firmware/tools/assets.py policy <导出目录> --as mypick                         # 同一份权重以非核心名上传
     uv run firmware/tools/assets.py audio 我的叫声.mp3 --as greet_3 [--adpcm]             # WAV/MP3/FLAC/OGG → greet_3.wav（当前目录）
     uv run firmware/tools/assets.py upload velstand-flat.mdp greet_3.wav --reboot         # 先连机器人的热点
     uv run firmware/tools/assets.py ls | rm /audio/greet_3.wav | restore | reboot | check 文件 ...
@@ -224,8 +225,8 @@ def policy_source_dir(hardware: str, slot: str) -> Path | None:
     return next((POLICIES / hardware / d for d in POLICY_SOURCE_DIRS[slot] if (POLICIES / hardware / d).is_dir()), None)
 
 
-def convert_policy(policy_dir: Path) -> Path:
-    """policies/<硬件版本>/<模型>/ 里导出的 _int8.h → 同目录 <模型>.mdp。硬件版本取目录名，并与 MANIFEST 核对。"""
+def convert_policy(policy_dir: Path, *, custom_name: str | None = None) -> Path:
+    """Pack an export, optionally assigning it a non-factory firmware slot."""
     policy_dir = policy_dir.resolve()
     hardware_id = policy_dir.parent.name
     slot = policy_target_name(policy_dir.name)
@@ -236,10 +237,14 @@ def convert_policy(policy_dir: Path) -> Path:
         raise SystemExit(f"{policy_dir}：MANIFEST 里的动作是 {manifest.get('skill')}，目录名是 {policy_dir.name}")
     if "hardware" in manifest and manifest["hardware"] != hardware_id:
         raise SystemExit(f"{policy_dir}：MANIFEST 里的硬件版本是 {manifest['hardware']}，目录名是 {hardware_id}")
+    if custom_name is not None:
+        if policy_target_name(custom_name) != custom_name or custom_name in POLICY_SLOTS:
+            raise SystemExit(f"{custom_name!r}：须为合法的非核心策略名（2–15 个 [A-Za-z0-9_-]）")
+        slot = custom_name
     source = _policy_source(policy_dir).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
     blob = build_policy_blob(parse_policy_header(source.decode("utf-8")), hardware_id, slot,
                              hashlib.sha256(source).digest())
-    read_policy_blob(blob)   # 写之前按读的规则核一遍
+    read_policy_blob(blob)
     out = policy_dir / f"{slot}{POLICY_EXT}"
     out.write_bytes(blob)
     return out
@@ -557,6 +562,7 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
     sp = sub.add_parser("policy", help="导出的策略目录 → 同目录 <模型>.mdp")
     sp.add_argument("dirs", nargs="+", type=Path)
+    sp.add_argument("--as", dest="policy_name", metavar="NAME", help="打包成非核心策略名，不改导出清单")
     sa = sub.add_parser("audio", help="任意音频 → <名>.wav（16 kHz 单声道；默认 16 位 PCM）")
     sa.add_argument("src", type=Path)
     sa.add_argument("--as", dest="name", required=True, help="<叫法>_<变体号>，如 greet_3")
@@ -584,8 +590,10 @@ def main() -> None:
     args = p.parse_args()
 
     if args.cmd == "policy":
+        if args.policy_name is not None and len(args.dirs) != 1:
+            sp.error("--as 只接受一个导出目录")
         for d in args.dirs:
-            out = convert_policy(d)
+            out = convert_policy(d, custom_name=args.policy_name)
             info = read_policy_blob(out.read_bytes())
             print(f"{out}：{info['hardware']} / {info['slot']}，{info['num_layers']} 层，"
                   f"{info['num_tests']} 个测试向量，{out.stat().st_size // 1024} KB")
