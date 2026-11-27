@@ -31,7 +31,7 @@ with Duck.connect(args.ip, timeout=4) as duck:
     # 退出 drive()：0.5 s 匀减速 + 补全零帧，鸭子原地站住（不要急停，容易摔）
     print("停下，ToF =", duck.state.get().tof_mm, "mm")
 
-    duck.motion.turn_left(seconds=1.0)
+    duck.motion.turn_left(seconds=2.25, v=1.0)  # 左转
     time.sleep(0.5)
     duck.motion.sit()
     time.sleep(3)

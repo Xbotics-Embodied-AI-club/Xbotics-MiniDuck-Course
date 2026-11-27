@@ -34,6 +34,8 @@ dependencies = [
     "requests",
     "soundfile",
     "soxr",
+    # 本机仿真板的 WebSocket / HTTP 服务。
+    "aiohttp",
     # 上位机 SDK 随仓分发，无需另装。
     "pyduck",
 ]

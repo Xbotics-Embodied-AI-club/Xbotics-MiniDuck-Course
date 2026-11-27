@@ -3505,6 +3505,7 @@ name = "xbotics-miniduck-course"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "gymnasium", extra = ["classic-control", "toy-text"] },
     { name = "ipywidgets" },
     { name = "jupyterlab" },
@@ -3526,6 +3527,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp" },
     { name = "gymnasium", extras = ["toy-text", "classic-control"] },
     { name = "ipywidgets" },
     { name = "jupyterlab" },

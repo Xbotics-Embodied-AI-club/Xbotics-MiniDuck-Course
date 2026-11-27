@@ -34,7 +34,7 @@ from training.sim import hardware
 from training.sim.hardware import Hardware
 
 sys.path.insert(0, str(REPO_ROOT / "firmware/tools"))
-from assets import POLICY_HEADER_BYTES, read_policy_blob
+from assets import POLICY_HEADER_BYTES, read_policy_blob as read_policy_blob
 
 DEFAULT_HARDWARE = "2026-11-26-hd1910"
 CONTROL_HZ = 50
@@ -276,9 +276,10 @@ def load_bam_model(hw: Hardware):
     return bam_model
 
 
-def build_simulation(hw: Hardware, skill: str, policy: Policy):
-    """Build the repository MJCF and replace position actuators with BAM motors."""
-    spec = mujoco.MjSpec.from_file(str(hw.model_dir / SKILL_SCENES[skill]))
+def build_simulation(hw: Hardware, skill: str, policy: Policy | MdpPolicy, *, spec: mujoco.MjSpec | None = None):
+    """Build the repository MJCF (or a caller's scene) with BAM motors."""
+    if spec is None:
+        spec = mujoco.MjSpec.from_file(str(hw.model_dir / SKILL_SCENES[skill]))
     actuator_by_joint: dict[str, str] = {}
     for actuator in spec.actuators:
         target = actuator.target
