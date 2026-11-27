@@ -16,7 +16,7 @@
 选修三讲各自独立：每一版的两半都直接继承同一对骨架，版本之间的差别就是这两半里改的那几行。
 S04、S05 最后比较时会读上一讲存下的权重，所以按 S03 → S04 → S05 的顺序跑。
 
-主线 04 和选修 S03–S05 的 `course-walk` 先练平地向前走，再加轻推和少量站立指令。它使用真实的硬件档案，但不训练后退、原地转圈、摆头或跌倒起身。
+主线 M04、M05 用 `course-walk`：先练平地向前走，再加入轻推和少量站立指令。S03–S05 共用 `course-walk-elective`，前 500 轮沿用同一设置，之后重置时从站姿附近的小范围实际关节角开始，练不同初态下的起步。两种任务都用同一硬件档案，不训练后退、原地转圈、摆头或跌倒起身。
 
 主线 04 的完整训练（6000 轮）从仓库根执行：
 
@@ -25,4 +25,4 @@ source .envrc
 MINIDUCK_HARDWARE=2026-11-26-hd1910 MINIDUCK_SKILL=course-walk MINIDUCK_RUN_NAME=m04-walk uv run python -m training.train_ppo
 ```
 
-主线 05 需要课程配套的 `m05_factory_walk.pt`。把它放在 `notebooks/M05-reward/` 后运行；`policies/` 下的板端 `.mdp` 只供推理，不能代替完整的训练检查点。
+主线 05 从同一份出厂走路训练检查点开始。请从[配套课程版本的 Release 附件](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases)下载 `m05_factory_walk.pt`，放在 `notebooks/M05-reward/` 再运行；notebook 的第一格会校验文件 SHA-256。`policies/` 下的板端 `.mdp` 只供推理，不能代替训练检查点。

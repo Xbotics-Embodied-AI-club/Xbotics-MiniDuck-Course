@@ -39,6 +39,7 @@ import torch
 import warp as wp
 from mjlab.envs import mdp as mjlab_mdp
 from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
+from mjlab.envs.mdp import dr
 from mjlab.managers import (
     CurriculumTermCfg,
     EventTermCfg,
@@ -118,6 +119,7 @@ SKILLS = {s.name: s for s in (
     Skill("walk", "Mjlab-Velocity-Flat-MicroDuck", "robot_walk.xml", "get_walk_spec", 6000),
     # 课程从零学平地直走，不把起身、转圈和摆头也塞进同一个短训练。
     Skill("course-walk", "Mjlab-Velocity-Flat-MicroDuck", "robot_walk.xml", "get_walk_spec", 6000),
+    Skill("course-walk-elective", "Mjlab-Velocity-Flat-MicroDuck", "robot_walk.xml", "get_walk_spec", 1500),
     # 站起：上游的站立老师（alpha_stand）取自第 9750 轮。上游配方从零训学不会从趴/仰姿势翻身
     # 所以从 alpha_stand.onnx 续训 2000 轮：
     # MINIDUCK_INIT_POLICY=<alpha_stand.onnx> MINIDUCK_INIT_ITERATION=9750。
@@ -421,8 +423,10 @@ def skill_env_cfg(skill: Skill, hardware: Hardware):
         if skill.vin_range_v is None:
             raise RuntimeError(f"{skill.name}：weak_getup 要在舵机电压随机（vin_range_v）的训练里用")
         getup.configure(cfg, nominal_v=sum(hardware.supply["vin_range_v"]) / 2)
-    if skill.name == "course-walk":
+    if skill.name in ("course-walk", "course-walk-elective"):
         _configure_course_walk(cfg)
+    if skill.name == "course-walk-elective":
+        cfg.events["reset_robot_joints"].func = _course_elective_reset_joints
     for name, weight in skill.reward_weights:
         if name not in cfg.rewards:
             raise RuntimeError(f"{skill.task_id} 的奖励表里没有 {name!r}，有：{', '.join(cfg.rewards)}")
@@ -446,11 +450,58 @@ def _course_air_time(env: ManagerBasedRlEnv, sensor_name: str, threshold_min: fl
     """Reward short swing on a planted support foot, not hopping or holding a foot up."""
     feet = env.scene[sensor_name].data
     command = env.command_manager.get_command(command_name)
-    assert command is not None and feet.found is not None and feet.current_air_time is not None
+    assert command is not None
+    assert feet.found is not None
+    assert feet.current_air_time is not None
     t = feet.current_air_time
     single_support = (feet.found > 0).sum(dim=1) == 1
     swing = ((t > threshold_min) & (t < threshold_max)).any(dim=1)
     return (single_support & swing & (command[:, 0] > command_threshold)).float()
+
+
+
+class _CourseYawDrift:
+    """Price sustained yaw drift without taxing the cyclic motion of a stride."""
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
+        del cfg
+        self._yaw_rate = torch.zeros(env.num_envs, device=env.device)
+        # Same time-averaged L1 shaping as the upstream head-pose bias term.
+        self._alpha = env.step_dt
+
+    def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
+        self._yaw_rate[slice(None) if env_ids is None else env_ids] = 0.0
+
+    def __call__(self, env: ManagerBasedRlEnv) -> torch.Tensor:
+        yaw_rate = env.scene["robot"].data.root_link_ang_vel_w[:, 2]
+        self._yaw_rate.lerp_(torch.nan_to_num(yaw_rate, nan=0.0, posinf=0.0, neginf=0.0), self._alpha)
+        return self._yaw_rate.abs().clamp_max_(1.0)
+
+
+def _course_encoder_bias_at_reset(
+    env: ManagerBasedRlEnv,
+    env_ids: torch.Tensor | None,
+    bias_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg,
+) -> None:
+    """Sample a fresh calibration after the opening phase, keeping it fixed within the episode."""
+    if env.common_step_counter > 12_000:
+        dr.encoder_bias(env, env_ids, bias_range=bias_range, asset_cfg=asset_cfg)
+
+
+def _course_elective_reset_joints(
+    env: ManagerBasedRlEnv,
+    env_ids: torch.Tensor | None,
+    position_range: tuple[float, float],
+    velocity_range: tuple[float, float],
+    asset_cfg: SceneEntityCfg,
+) -> None:
+    """Practise correcting small HOME pose errors after basic stepping is learned."""
+    if env.common_step_counter > 12_000:
+        position_range = (-0.05, 0.05)
+    mjlab_mdp.reset_joints_by_offset(
+        env, env_ids, position_range=position_range, velocity_range=velocity_range, asset_cfg=asset_cfg,
+    )
 
 
 def _configure_course_walk(cfg) -> None:
@@ -473,7 +524,14 @@ def _configure_course_walk(cfg) -> None:
     tracking = cfg.rewards["track_linear_velocity"]
     tracking.weight = 5.0
     tracking.params["std"] = 0.20
-    cfg.rewards["track_angular_velocity"].weight = 1.0
+    # Keep upstream instantaneous angular tracking; its velocity Gaussian
+    # alone cannot distinguish periodic yaw from a persistent turning bias.
+    cfg.rewards["yaw_drift"] = RewardTermCfg(func=_CourseYawDrift, weight=-2.0)
+    cfg.curriculum["yaw_drift_weight"] = CurriculumTermCfg(
+        func=microduck_mdp.reward_weight,
+        params={"reward_name": "yaw_drift", "weight_stages": [
+            {"step": 0, "weight": -2.0}, {"step": 6_000, "weight": -4.0},
+        ]})
     cfg.rewards["trunk_height"] = RewardTermCfg(func=_course_trunk_height, weight=3.0)
     cfg.terminations["trunk_too_low"] = TerminationTermCfg(
         func=mjlab_mdp.root_height_below_minimum, params={"minimum_height": _COURSE_TRUNK_FLOOR})
@@ -487,13 +545,20 @@ def _configure_course_walk(cfg) -> None:
     cfg.curriculum["action_rate_weight"].params["weight_stages"] = [
         {"step": 0, "weight": -0.1}, {"step": 12_000, "weight": -0.2}, {"step": 24_000, "weight": -0.3},
     ]
-    # The inherited broad startup CoM shift acts before the student sees its first stand.
-    # Keep the smaller per-reset curriculum instead, while retaining the real supply and encoder model.
+    # Train more combinations of encoder calibration and CoM without widening either range.
+    cfg.events["episode_encoder_bias"] = EventTermCfg(
+        func=_course_encoder_bias_at_reset,
+        mode="reset",
+        params=cfg.events["encoder_bias"].params.copy(),
+    )
+    # Keep the upstream per-reset CoM curriculum, without its wide startup event.
+    # Start the assay's ±10 mm stage at 750 rounds so the short notebook trains
+    # on it for half its budget, without changing the opening or final ranges.
     del cfg.events["base_com"]
     for name in ("com_range", "head_com_range"):
-        cfg.curriculum[name].params["range_stages"] = [
-            {"step": 0, "range": 0.003}, {"step": 24_000, "range": 0.006},
-        ]
+        for stage in cfg.curriculum[name].params["range_stages"]:
+            if stage["step"] == 24_000:
+                stage["step"] = 18_000
     push_stages = [
         {"step": step, "velocity_range": {"x": (-limit, limit), "y": (-limit, limit)}}
         for step, limit in ((0, 0.0), (12_000, 0.05), (24_000, 0.10), (30_000, 0.15))

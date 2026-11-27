@@ -10,7 +10,7 @@
 | 学习率 | Adam 1e-3，每个小批按 KL(旧‖新) 调：> 0.02 则 /1.5，< 0.005 则 ×1.5，夹在 [1e-5, 1e-2] |
 | 梯度 | actor 与 critic 分开各裁到范数 1.0（`module.PolicyModule`） |
 
-选修 S05 在课上照着 S03、S04 的两半手写一遍 PPO，最后一格和这里的 `PPOData`、`PPO` 在同一段轨迹上逐位比对。
+选修 S05 沿用 S03、S04 的 data/model 拆法，在 notebook 里手写 PPO。
 正式训练（`train_ppo.py`）在它之上挂存盘、记录、行为克隆与续训。
 """
 from __future__ import annotations
