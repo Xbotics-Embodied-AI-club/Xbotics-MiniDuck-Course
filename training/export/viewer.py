@@ -34,7 +34,7 @@ from training.sim import hardware
 from training.sim.hardware import Hardware
 
 sys.path.insert(0, str(REPO_ROOT / "firmware/tools"))
-from assets import POLICY_HEADER_BYTES, read_policy_blob as read_policy_blob
+from assets import POLICY_HEADER_BYTES, read_policy_blob
 
 DEFAULT_HARDWARE = "2026-11-26-hd1910"
 CONTROL_HZ = 50

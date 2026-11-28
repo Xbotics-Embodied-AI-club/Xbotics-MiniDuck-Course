@@ -1,6 +1,6 @@
 """优势估计：广义优势估计（GAE）与一批优势的标准化。
 
-PPO 的数据一半（`ppo.PPOData.prepare`）用它；选修 S04 在课上手写一遍 GAE，最后一格和这里逐位比对。
+PPO 用它把采样回报转换为训练策略的优势和训练价值网络的目标。
 """
 from __future__ import annotations
 

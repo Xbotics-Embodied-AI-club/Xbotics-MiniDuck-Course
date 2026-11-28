@@ -29,9 +29,14 @@ with pyduck.Duck.connect("127.0.0.1") as duck:
 
 ## 运行自己训练的捡取策略
 
-沿用主线 05 的 `MINIDUCK_CKPT_ROOT`。`MINIDUCK_RUN_NAME` 指向自己的 ground-pick 训练目录，`CKPT` 是其中的权重文件名，`OUT` 指向独立导出目录，不覆盖出厂策略：
+从学员仓根目录运行。把 `MINIDUCK_RUN_NAME` 改成自己的 `ground-pick` 训练目录名，
+`CKPT` 改成其中的权重文件名，`OUT` 指向独立导出目录。
 
 ```sh
+source .envrc
+export MINIDUCK_RUN_NAME=ground-pick-demo
+CKPT=model_1000.pt
+OUT=result/mypick-export
 MINIDUCK_SKILL=ground-pick uv run --locked python training/export/export_policy.py "$CKPT" --output-root "$OUT"
 uv run --locked python firmware/tools/assets.py policy --as mypick "$OUT/2026-11-26-hd1910/ground-pick"
 ```
@@ -41,6 +46,8 @@ uv run --locked python firmware/tools/assets.py policy --as mypick "$OUT/2026-11
 从刚启动、尚未站起的仿真板开始。把 `mdp` 换成打包命令输出的路径：
 
 ```python
+import time
+
 from pyduck import Duck  # 导入 SDK
 
 mdp = "导出目录/2026-11-26-hd1910/ground-pick/mypick.mdp"  # 策略路径
@@ -48,7 +55,8 @@ with Duck.connect("127.0.0.1") as duck:  # 连接本机仿真
     duck.policy.upload(mdp)  # 在待机时上传
     duck.policy.load("mypick")  # 按自定义名热载
     duck.motion.stand()  # 起身
-    duck.state.wait_for(lambda st: st.state_name == "STANDING", timeout=15)  # 等站稳
+    duck.state.wait_for(lambda st: st.state_name == "STANDING", timeout=15)
+    time.sleep(1.1)  # 进入站立状态后，板子还要求持续站立满一秒
     duck.policy.run("mypick", seconds=10)  # 运行十秒
 ```
 
