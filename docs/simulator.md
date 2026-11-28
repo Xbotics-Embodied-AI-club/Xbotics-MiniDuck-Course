@@ -40,12 +40,15 @@ uv run python training/export/viewer.py --skill velstand-flat
 
 | 按键 | 动作 |
 | --- | --- |
-| `W`、`S` | 前进、后退 |
+| 长按 `W` | 持续向前走，松开后停下 |
+| `S` | 后退 |
 | `A`、`D` | 转向 |
 | `J`、`L` | 横向平移 |
-| 空格 | 立刻停下 |
-| `R` | 重置 |
-| `Q` | 退出 |
+| 空格 | 清零运动指令，停止行走 |
+| `R` | 重置仿真 |
+| `Q` | 关闭查看器并返回终端 |
+
+主线 M04 与选修 S03–S05 训练的是平地直走。用查看器看这些课程策略时，用 `W` 观察前进步态；后退和转向不是这两个训练任务的目标。
 
 ## 看其他动作
 
@@ -77,3 +80,56 @@ uv run python sdk/pyduck/examples/01_state_and_sensors.py --ip 192.168.4.1
 ```
 
 其他用法见 [pyduck 文档与例程](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/tree/main/sdk/pyduck)。
+
+## 用 Python 连接本机仿真板
+
+没有真机也能运行 SDK 例程。仿真板只监听本机地址 `127.0.0.1`，用同一硬件版本的仿真模型和出厂策略响应 `pyduck`。
+
+在学员仓根目录用 Python 3.12 同步锁定环境，然后启动仿真板：
+
+```{code-block} bash
+:class: duck-wrap-code
+
+uv sync --locked
+uv run --locked python -m sdk.sim_board.server
+```
+
+如果 Linux 不允许普通用户监听默认端口（WebSocket 88、文件服务 83），同步依赖仍用普通用户，只把启动命令换成：
+
+```{code-block} bash
+:class: duck-wrap-code
+
+sudo "$(uv run --locked python -c 'import sys; print(sys.executable)')" -m sdk.sim_board.server
+```
+
+看到 `READY` 后，另开终端回到学员仓根目录，运行例程 02。仿真鸭起身后会向前走，遇到挡板时转向约 90°。
+
+```{code-block} bash
+:class: duck-wrap-code
+
+uv run --locked python sdk/pyduck/examples/02_drive_and_avoid.py --ip 127.0.0.1
+```
+
+## 打包与运行自定义策略
+
+先按[本机仿真板文档](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/tree/main/sdk/sim_board#运行自己训练的捡取策略)导出自己的策略。以导出到 `result/mypick-export` 的 `ground-pick` 为例：
+
+```{code-block} bash
+:class: duck-wrap-code
+
+uv run --locked python firmware/tools/assets.py policy \
+  result/mypick-export/2026-11-26-hd1910/ground-pick --as mypick
+```
+
+`--as mypick` 把板端名称写进 `mypick.mdp`。名称用 2–15 个英文字母、数字、下划线或连字符，避开出厂策略名。源目录和导出清单保持不变；不要直接改 `.mdp` 的文件名。
+
+让仿真板从待机或卸力开始。例程 03 会上传 `mypick.mdp`，按 `mypick` 热载，等小鸭子站稳再运行。如果刚跑过例程 02，可以先重启仿真板回到待机。
+
+```{code-block} bash
+:class: duck-wrap-code
+
+uv run --locked python sdk/pyduck/examples/03_custom_policy.py --ip 127.0.0.1 \
+  --mdp result/mypick-export/2026-11-26-hd1910/ground-pick/mypick.mdp
+```
+
+仿真板退出后，上传的策略随进程清空。
