@@ -1,6 +1,7 @@
 """把一份训好的权重导出成真机用的文件，并证明导出没有把策略弄坏。
 
-产出都在 `policies/<硬件版本>/<动作>/`（进 git；硬件版本取权重训练时记的那一版，与 `sim_model/hardware/` 一一对应）。
+默认产出到 `policies/<硬件版本>/<动作>/`。指定 `--output-root` 可另存一份；
+硬件默认取权重训练时的版本，`--target-hardware` 可指定同机体结构、同舵机、同 MJCF 的标定与评测目标。
 下表以走路为例；`<名>` 是动作名把连字符换成下划线
 （velstand-flat → velstand_flat），用作文件名与 C 里的前缀：
 
@@ -47,7 +48,8 @@ from training.logs import run_cli
 from training.paths import REPO_ROOT, checkpoint_dir, run_name
 from training.ppo.network import NORMALIZER_EPS, DeployedActor
 from training.sim.env import DuckEnv, Skill, skill_from_env
-from training.sim.hardware import Hardware, load as load_hardware
+from training.sim.hardware import Hardware
+from training.sim.hardware import load as load_hardware
 
 NUM_TEST_VECTORS = 32
 # ONNX 与 PyTorch 只该差 float32 的舍入：舍入误差与输出的大小成正比，门槛是输出幅度 1 时的 1e-5，
@@ -175,29 +177,30 @@ def main():
     Raises:
         RuntimeError: ONNX 与 PyTorch 不一致，或主机上的 C 自检没过（此时不写清单）。
     """
-    skill = skill_from_env()
-    c_name = skill.name.replace("-", "_")
-    name = run_name()
     parser = argparse.ArgumentParser(description="导出训练权重并核对 ONNX、int8 和闭环结果。")
     parser.add_argument("checkpoint", nargs="?", help="权重文件名；省略时使用最后一份")
     parser.add_argument("--output-root", type=Path, help="在该目录下写 <硬件版本>/<动作>/，默认 policies/")
     parser.add_argument("--target-hardware", help="以同结构、同舵机的新硬件版本作标定和闭环评测")
     args = parser.parse_args()
+
+    skill = skill_from_env()
+    c_name = skill.name.replace("-", "_")
+    name = run_name()
     ckpt_path = checkpoint_dir(name) / args.checkpoint if args.checkpoint else latest_checkpoint(name)
     model, ckpt = load_checkpoint(ckpt_path, "cpu")
     settings = ckpt["training_settings"]
-    trained_id = settings["hardware"]
     if args.target_hardware is None:
         hw = trained_hardware(ckpt)
+        trained_id = hw.id
     else:
         hw = load_hardware(args.target_hardware)
+        trained_id = settings["hardware"]
         trained_spec = settings["hardware_spec"]
-        robot_xml = settings["robot_xml"]
-        reference = hw.training_record(robot_xml)
+        robot_xml = hw.model_dir / settings["robot_xml"]
         if (hw.spec["structure"] != trained_spec["structure"] or hw.servo.key != trained_spec["servo"]
-                or reference["robot_xml_sha256"] != settings["robot_xml_sha256"]):
+                or not robot_xml.is_file() or sha256(robot_xml) != settings["robot_xml_sha256"]):
             parser.error("目标硬件须与训练权重使用同一机体结构、舵机和机器人 MJCF")
-    out_dir = (args.output_root / hw.id if args.output_root else hw.policies_dir) / skill.name
+    out_dir = (args.output_root / hw.id if args.output_root is not None else hw.policies_dir) / skill.name
     counter = int(ckpt["common_step_counter"])
     out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path, header_path, npz_path = (out_dir / f"{c_name}.onnx", out_dir / f"{c_name}_int8.h",

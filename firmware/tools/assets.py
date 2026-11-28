@@ -1,9 +1,9 @@
 """MiniDuck 板上文件：把策略、叫声转成固件认的格式与文件名，经热点传到板子上（与网页「文件」页 83 口同一个接口）
 
-    uv run firmware/tools/assets.py policy policies/2026-11-26-hd1910/<模型>                # 导出的策略 → 同目录 <模型>.mdp
+    uv run firmware/tools/assets.py policy policies/<硬件版本>/<动作>                # 导出的策略 → 同目录 <模型>.mdp
     uv run firmware/tools/assets.py policy <导出目录> --as mypick                         # 同一份权重以非核心名上传
     uv run firmware/tools/assets.py audio 我的叫声.mp3 --as greet_3 [--adpcm]             # WAV/MP3/FLAC/OGG → greet_3.wav（当前目录）
-    uv run firmware/tools/assets.py upload velstand-flat.mdp greet_3.wav --reboot         # 先连机器人的热点
+    uv run firmware/tools/assets.py upload mypick.mdp greet_3.wav --reboot                 # 先连机器人的热点
     uv run firmware/tools/assets.py ls | rm /audio/greet_3.wav | restore | reboot | check 文件 ...
     uv run firmware/tools/assets.py record -o 本次上电.mdr [--session 3]                  # 下载上电记录（84 口）
 
@@ -60,12 +60,15 @@ POLICY_VERSION = 1
 POLICY_HEADER_BYTES = 128
 POLICY_SLOTS = ("standup", "velstand-flat", "sitstand", "ground-pick", "ball-kick", "roulade")   # 固件的模型，文件名 = 模型名
 POLICY_CORE = POLICY_SLOTS[:3]   # 每个硬件版本都要有；后三个是一次性动作，没训就没有
+# 自定义策略名（固件 include/system_config.h 的 POLICY_NAME_MIN / POLICY_NAME_MAX，lib/assets/src/asset_layout.c
+# 的 asset_valid_policy_name）：2..15 个 [A-Za-z0-9_-]，不带扩展名。导出的目录名不合 POLICY_SOURCE_DIRS 的映射时，
+# 只要既是合规名字又不是上面 6 个核心名，就当自定义策略处理（/policy/<名字>.mdp，注册表 6..11 槽）
 POLICY_NAME_MIN = 2
 POLICY_NAME_MAX = 15
 POLICY_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
-# 模型取自哪个导出目录（policies/<硬件版本>/<目录>/）：列出的目录都能转成这个模型的文件，出厂文件取靠前的第一个有的。
-# standup 先取 standup-slope（舵机放弱、坡上训的起身，固件 0.9.1 起出厂用它），没有再取全碰撞模型上训的 standup-full、最早的 standup；
-# velstand-flat 先取 velstand-slope（坡上训的走路，0.9.1 起出厂用它），没有再取平地上训的 velstand-flat。
+# 模型取自哪个导出目录（policies/<硬件版本>/<目录>/），靠前的优先。
+# 起身依次选 standup-slope（坡上训的弱舵机起身）、standup-full（全碰撞模型）、standup。
+# 走路依次选 velstand-slope（坡地与起伏地面训练）、velstand-flat（平地训练）。
 POLICY_SOURCE_DIRS = {slot: (slot,) for slot in POLICY_SLOTS} | {
     "standup": ("standup-slope", "standup-full", "standup"), "velstand-flat": ("velstand-slope", "velstand-flat")}
 POLICY_EXT = ".mdp"
@@ -110,7 +113,7 @@ def _align16(n: int) -> int:
 # ---------------------------------------------------------------------------------------------------------
 
 def parse_policy_header(text: str) -> dict:
-    """读 training/export_tools/export_policy.py 生成的 _int8.h：各数组的数值与 policy_int8_t 的标量字段。
+    """读 training/export/export_policy.py 生成的 _int8.h：各数组的数值与 policy_int8_t 的标量字段。
 
     Returns:
         {"name", "obs_dim", "act_dim", "num_layers", "num_tests", "in_inv_scale", "in_zero_plus_half",
@@ -205,46 +208,69 @@ def _policy_source(policy_dir: Path) -> Path:
     return headers[0]
 
 
+def canonical_policy_source(source: bytes) -> bytes:
+    return source.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def policy_source_sha256(source: bytes) -> bytes:
+    return hashlib.sha256(canonical_policy_source(source)).digest()
+
+
 def slot_of_dir(name: str) -> str | None:
     """导出目录名 → 它进固件的哪个模型；不进固件时为 None。"""
     return next((slot for slot, dirs in POLICY_SOURCE_DIRS.items() if name in dirs), None)
 
 
+def _is_custom_policy_name(name: str) -> bool:
+    return (POLICY_NAME_MIN <= len(name) <= POLICY_NAME_MAX
+            and POLICY_NAME_RE.fullmatch(name) is not None and name not in POLICY_SLOTS)
+
+
 def policy_target_name(name: str) -> str | None:
-    """把已知动作映射到固件槽位，合法自定义动作直接使用自己的目录名。"""
+    """导出目录名 → 板上策略名：先按 POLICY_SOURCE_DIRS 映射到 6 个核心模型，映射不到但名字合规就当自定义策略。
+
+    自定义策略没有出厂回退，只能放到 /policy（PCMD LOAD 热载或开机扫描登记进 6..11 槽）；
+    名字规则与固件 asset_valid_policy_name 一致（2..15 个 [A-Za-z0-9_-]）。
+    """
     slot = slot_of_dir(name)
     if slot is not None:
         return slot
-    if POLICY_NAME_MIN <= len(name) <= POLICY_NAME_MAX and POLICY_NAME_RE.fullmatch(name):
+    if _is_custom_policy_name(name):
         return name
     return None
 
 
 def policy_source_dir(hardware: str, slot: str) -> Path | None:
     """这个硬件版本的这个模型取自哪个导出目录；没有时为 None。"""
-    return next((POLICIES / hardware / d for d in POLICY_SOURCE_DIRS[slot] if (POLICIES / hardware / d).is_dir()), None)
+    return next((POLICIES / hardware / d for d in POLICY_SOURCE_DIRS.get(slot, (slot,)) if (POLICIES / hardware / d).is_dir()), None)
 
 
 def convert_policy(policy_dir: Path, *, custom_name: str | None = None) -> Path:
-    """Pack an export, optionally assigning it a non-factory firmware slot."""
+    """将导出的 _int8.h 打包为同目录的 .mdp，目录名与 MANIFEST 核对。
+
+    custom_name 是显式的非核心板端名称；未指定时才按源目录映射板端名称。
+    """
     policy_dir = policy_dir.resolve()
     hardware_id = policy_dir.parent.name
-    slot = policy_target_name(policy_dir.name)
-    if slot is None:
-        raise SystemExit(f"{policy_dir}：策略名须为 {POLICY_NAME_MIN}..{POLICY_NAME_MAX} 个 [A-Za-z0-9_-] 字符")
+    if custom_name is None:
+        slot = policy_target_name(policy_dir.name)
+        if slot is None:
+            raise SystemExit(f"{policy_dir}：{policy_dir.name} 既不是固件的模型（{'、'.join(POLICY_SLOTS)}），"
+                             f"也不是合规的自定义策略名（{POLICY_NAME_MIN}..{POLICY_NAME_MAX} 个 [A-Za-z0-9_-]）")
+    else:
+        if not _is_custom_policy_name(custom_name):
+            raise SystemExit(f"{custom_name!r}：须为合法的非核心策略名"
+                             f"（{POLICY_NAME_MIN}..{POLICY_NAME_MAX} 个 [A-Za-z0-9_-]）")
+        slot = custom_name
     manifest = json.loads((policy_dir / "MANIFEST.json").read_text(encoding="utf-8"))
     if manifest.get("skill") != policy_dir.name:
         raise SystemExit(f"{policy_dir}：MANIFEST 里的动作是 {manifest.get('skill')}，目录名是 {policy_dir.name}")
     if "hardware" in manifest and manifest["hardware"] != hardware_id:
         raise SystemExit(f"{policy_dir}：MANIFEST 里的硬件版本是 {manifest['hardware']}，目录名是 {hardware_id}")
-    if custom_name is not None:
-        if policy_target_name(custom_name) != custom_name or custom_name in POLICY_SLOTS:
-            raise SystemExit(f"{custom_name!r}：须为合法的非核心策略名（2–15 个 [A-Za-z0-9_-]）")
-        slot = custom_name
-    source = _policy_source(policy_dir).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-    blob = build_policy_blob(parse_policy_header(source.decode("utf-8")), hardware_id, slot,
-                             hashlib.sha256(source).digest())
-    read_policy_blob(blob)
+    source = _policy_source(policy_dir).read_bytes()
+    blob = build_policy_blob(parse_policy_header(canonical_policy_source(source).decode("utf-8")), hardware_id, slot,
+                             policy_source_sha256(source))
+    read_policy_blob(blob)   # 写之前按读的规则核一遍
     out = policy_dir / f"{slot}{POLICY_EXT}"
     out.write_bytes(blob)
     return out

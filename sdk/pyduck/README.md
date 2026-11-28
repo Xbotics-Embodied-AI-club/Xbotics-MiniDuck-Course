@@ -111,18 +111,21 @@ python sdk/pyduck/examples/03_custom_policy.py --ip 192.168.1.150 --mdp my-polic
 
 - **维度契约与训练侧一致：观测 61 维、动作 14 维。** 文件头里 `obs_dim=61`、`act_dim=14`，
   固件不匹配直接拒载。
-- **导出**：训练产物经 `training/export/export_policy.py` 得到 `*_int8.h`，再在仓库根运行
-  `uv run firmware/tools/assets.py policy policies/<硬件版本>/<动作目录>/`，同目录生成
-  `<模型>.mdp`。转换时硬件版本取自目录名，模型名取自动作目录。
-- **名字**：2..15 个字符，只允许 `[A-Za-z0-9_-]`；文件头里的模型名必须与文件名主干一致。
-  6 个核心槽位（`standup`、`velstand-flat`、`sitstand`、`ground-pick`、`ball-kick`、`roulade`）
-  不要占用。
-- **上传**：`duck.policy.upload("velstand-flat.mdp")` 先在本地核对 128 字节文件头（magic、版本、
-  硬件版本、模型名、维度），不合格不发板；通过后 POST 到文件页 83 口。上传后 `policy.load(name)`
-  热载，或重启让开机流程载入。
-- **运行**：`duck.policy.run("my-policy", seconds=10, scale=1.0)`。固件单次最长 60 s；
-  `run()` 在固件接受后阻塞轮询 SSTA，直到状态离开 `SKILL`（或超时），中途可以被
-  `duck.policy.stop()` 或任意运动命令打断。
+- **打包**：训练完成后，用 `training/export/export_policy.py` 导出 `ground-pick`，指定 `--output-root result/mypick-export`。
+  在仓库根目录运行：
+
+  ```sh
+  uv run python firmware/tools/assets.py policy result/mypick-export/2026-11-26-hd1910/ground-pick --as mypick
+  ```
+
+  这会生成 `result/mypick-export/2026-11-26-hd1910/ground-pick/mypick.mdp`。保留原动作目录和 `MANIFEST.json`；
+  `--as` 只设置板端名称。名称限 2–15 个 `[A-Za-z0-9_-]` 字符，不能占用核心槽位。
+- **上传与热载**：从待机或卸力开始，调用
+  `duck.policy.upload("result/mypick-export/2026-11-26-hd1910/ground-pick/mypick.mdp")`，
+  再调用 `duck.policy.load("mypick")`。SDK 在上传前核对文件头；不要直接重命名 `.mdp`。
+- **运行**：发出站立命令，等状态变为 `STANDING`，再等 1.1 秒，然后调用
+  `duck.policy.run("mypick", seconds=10)`。`run()` 阻塞到策略结束，单次最多 60 秒；
+  可用 `duck.policy.stop()` 或运动命令打断。完整流程见 [例程 03](examples/03_custom_policy.py)。
 
 ## 已知限制（v1）
 
