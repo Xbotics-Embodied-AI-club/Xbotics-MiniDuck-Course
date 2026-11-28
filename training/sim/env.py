@@ -29,7 +29,7 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-# Task registration prints upstream patch banners; keep failures visible, not successful patch notices.
+# 上游注册任务时的成功提示转为调试日志，异常信息仍须可见。
 with contextlib.redirect_stdout(io.StringIO()) as _registration_output:
     import mjlab_microduck.tasks  # noqa: F401
 import mujoco

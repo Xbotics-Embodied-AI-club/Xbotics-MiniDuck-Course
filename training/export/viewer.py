@@ -42,8 +42,10 @@ DECIMATION = 4
 PHYSICS_DT = 1.0 / (CONTROL_HZ * DECIMATION)
 OBS_DIM = 61
 ACTION_DIM = 14
+COURSE_WALK_SKILLS = ("course-walk", "course-walk-elective")
 SKILL_SCENES = {
     "walk": "scene_walk.xml",
+    **dict.fromkeys(COURSE_WALK_SKILLS, "scene_walk.xml"),
     "standup": "scene_allcollisions.xml",
     "standup-full": "scene_allcollisions.xml",
     "standup-slope": "scene_allcollisions.xml",
@@ -58,6 +60,7 @@ SKILL_SCENES = {
 }
 ROBOT_XML_BY_SKILL = {
     "walk": "robot_walk.xml",
+    **dict.fromkeys(COURSE_WALK_SKILLS, "robot_walk.xml"),
     "standup": "robot_allcollisions.xml",
     "standup-full": "robot_allcollisions.xml",
     "standup-slope": "robot_allcollisions.xml",
@@ -70,7 +73,7 @@ ROBOT_XML_BY_SKILL = {
     "ball-kick": "robot_groundcontact.xml",
     "roulade": "robot_groundcontact.xml",
 }
-LOCOMOTION_SKILLS = {"walk", "velstand-flat", "velstand-rough-backlash",
+LOCOMOTION_SKILLS = {"walk", *COURSE_WALK_SKILLS, "velstand-flat", "velstand-rough-backlash",
                      "velstand-slope", "velstand-slope-dirg"}
 MDP_SLOTS = {"standup-full": "standup", "standup-slope": "standup",
              "velstand-slope": "velstand-flat", "velstand-slope-dirg": "velstand-flat"}

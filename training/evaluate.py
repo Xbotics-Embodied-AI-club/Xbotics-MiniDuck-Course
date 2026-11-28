@@ -186,32 +186,37 @@ def _per_foot_medians(
 def evaluate_airtime(
     policy: ActorCritic | Policy, hw: Hardware, common_step_counter: int, device="cuda:0"
 ) -> dict[str, list[float | None]]:
-    """Measure supported swings on flat ground at a fixed forward command.
+    """在固定前进指令下量左右脚的腾空时间和抬脚高度。
 
-    Uses 512 identical initial draws for each policy, 0.30 m/s and no pushes. A
-    swing must start and end inside the 10 s tail window, last at least 60 ms,
-    and have the opposite foot on the ground throughout. Only first episodes
-    that complete the window contribute, so a reset cannot masquerade as a step.
+    同一组 512 个平地开局，指令 0.30 m/s，不加推扰。只计首回合在第 10 秒至超时前
+    起脚并落地的摆动：持续至少 60 ms，对侧脚始终着地。提前结束的回合不参与统计，
+    以免把重置当成迈步。
 
     Args:
-        policy: Deterministic policy or training network.
-        hw: Hardware simulated during training.
-        common_step_counter: Curriculum position at the end of training.
-        device: Simulation device.
+        policy: 训练网络或确定性策略。
+        hw: 评测使用的硬件档案。
+        common_step_counter: 训练结束时课程表走到的环境步数。
+        device: 仿真的设备。
 
     Returns:
-        Left then right swing duration (``swing_ms``) and peak foot-site height
-        above ground (``peak_foot_mm``), as medians of per-episode means. A foot
-        with no completed swings has ``None`` for both metrics.
+        左、右脚分别给出摆动时长 `swing_ms`（毫秒）与脚部测点离地峰高 `peak_foot_mm`
+        （毫米）。先逐回合平均，再取中位数；没有有效摆动则为 `None`。
+
+    Raises:
+        ValueError: 回合长度、控制频率或接触通道不符合这项平地测量的要求。
     """
     skill = SKILLS["walk"]
     speed = VIDEO_PINNED_SPEED[skill.name]
+    if isinstance(policy, ActorCritic):
+        policy.eval()
     policy = as_policy(policy, device)
     torch.manual_seed(SEED)
     env = DuckEnv(skill, hw, num_envs=EVAL_ENVS, device=device, seed=SEED)
     try:
         base = env.unwrapped
         dt = base.step_dt
+        if env.max_episode_length != 1000 or not np.isclose(dt, 0.02):
+            raise ValueError("腾空评测需要 50 Hz、20 秒的平地走路回合")
         first_tick, min_ticks = round(10.0 / dt), round(0.06 / dt)
         robot = base.scene["robot"]
         feet = base.scene["feet_ground_contact"]
@@ -223,19 +228,22 @@ def evaluate_airtime(
         no_push = dict.fromkeys(push.params["velocity_range"], (0.0, 0.0))
         push.params["velocity_range"] = no_push
         env.pin_commands(speed)
-        # The cached observation contains the pinned command only after a step.
+        # 钉住的指令到下一步才进入缓存观测。
         obs, _, _, done, _ = env.step(torch.zeros(env.num_envs, env.action_dim, device=env.device))
         active = ~done
         contact = feet.data.found > 0
+        if contact.shape != (env.num_envs, 2):
+            raise ValueError(f"腾空评测需要左右脚各一个触地通道，实际为 {contact.shape}")
         air = torch.zeros_like(contact, dtype=torch.long)
         count = torch.zeros_like(air)
         duration = torch.zeros_like(air)
         peak = torch.zeros_like(air, dtype=torch.float32)
         height = torch.zeros_like(peak)
+        # 末步超时会重置所有仍存活的环境，不让该帧改变首回合计分。
         for tick in range(2, env.max_episode_length):
             previous = contact
             obs, _, _, done, _ = env.step(policy(obs))
-            # Reset may resample commands and overwrite the push curriculum.
+            # 重置可能重采样指令并写回推扰课程表。
             env.pin_commands(speed)
             push.params["velocity_range"] = no_push
             active &= ~done
