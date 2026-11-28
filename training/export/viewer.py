@@ -18,6 +18,8 @@ import select
 import sys
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import mujoco
@@ -434,6 +436,22 @@ def set_command_from_held_keys(command: np.ndarray, held: set[str]):
     command[1] = 0.2 * (int("j" in held) - int("l" in held))
 
 
+@contextmanager
+def _passive_viewer(
+    model: mujoco.MjModel, data: mujoco.MjData
+) -> Iterator[mujoco.viewer.Handle]:
+    """Keep the process alive until MuJoCo has destroyed the window."""
+    viewer = mujoco.viewer.launch_passive(model, data, show_left_ui=False, show_right_ui=False)
+    try:
+        yield viewer
+    finally:
+        viewer.close()
+        # MuJoCo 3.10 的 is_running() 在收到退出请求时就变为 False；
+        # 渲染线程销毁窗口并释放所有权后，Handle.m 才为 None。
+        while viewer.m is not None:
+            time.sleep(0.01)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skill", choices=tuple(SKILL_SCENES), default="velstand-flat")
@@ -498,9 +516,7 @@ def main():
                             + ["sim_time_s", "root_x_m", "root_y_m", "root_z_m",
                                "root_qw", "root_qx", "root_qy", "root_qz"])
     try:
-        with TerminalKeys() as keys, mujoco.viewer.launch_passive(
-            model, data, show_left_ui=False, show_right_ui=False
-        ) as viewer:
+        with TerminalKeys() as keys, _passive_viewer(model, data) as viewer:
             viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
             viewer.cam.trackbodyid = trunk_id
             viewer.cam.distance = 0.9
