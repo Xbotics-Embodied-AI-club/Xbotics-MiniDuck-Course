@@ -165,7 +165,7 @@ class TerminalKeys:
             if not ready:
                 continue
             for value in posix_os.read(self._terminal_fd, 32):
-                key = chr(value).lower()
+                key = "space" if value == 0x20 else chr(value).lower()
                 if key in POSIX_MOTION_KEYS or key in {"q", "r", "c"}:
                     self._record_posix_key(key, time.monotonic())
 
@@ -376,6 +376,10 @@ class Observer:
         if self.policy.hardware.endswith("hd1910"):
             self.bam_model.actuator.q_target_smooth = self.policy.default_pose.copy()
         self.last_action.fill(0.0)
+        # 课程策略训练时用上一控制步的关节速度（固定 20 ms），不能喂当前采样。
+        self._previous_joint_velocity = (
+            self.data.qvel[self.qvel_indices] if self.policy.skill in COURSE_WALK_SKILLS else None
+        )
         mujoco.mj_forward(self.model, self.data)
 
     def active_policy(self) -> Policy:
@@ -389,14 +393,17 @@ class Observer:
         gravity = rotation.reshape(3, 3).T @ np.array([0.0, 0.0, -1.0])
         angular_velocity = self.data.sensordata[self.imu_adr:self.imu_adr + 3]
         relative_position = self.data.qpos[self.qpos_indices] - self.policy.default_pose
-        joint_velocity = self.data.qvel[self.qvel_indices]
+        main_policy_active = self.active_policy() is self.policy
+        joint_velocity = self._previous_joint_velocity
+        if joint_velocity is None or not main_policy_active:
+            joint_velocity = self.data.qvel[self.qvel_indices]
         command = np.zeros(13, dtype=np.float32)
         if self.policy.skill == "ground-pick":
             phase = 2.0 * np.pi * min(self.data.time / 4.0, 1.0)
             command[:2] = np.cos(phase), np.sin(phase)
         elif self.policy.skill == "sitstand":
             command[0] = self.command[0]
-        elif self.policy.skill in LOCOMOTION_SKILLS and self.active_policy() is self.policy:
+        elif self.policy.skill in LOCOMOTION_SKILLS and main_policy_active:
             command[:3] = self.command
         observation = np.concatenate((angular_velocity, gravity, relative_position,
                                       joint_velocity, self.last_action, command)).astype(np.float32)
@@ -408,6 +415,8 @@ class Observer:
         active = self.active_policy()
         observation = self.observation()
         action = active.infer(observation)
+        if self._previous_joint_velocity is not None:
+            self._previous_joint_velocity = self.data.qvel[self.qvel_indices]
         self.controller.q_target[:] = self.policy.default_pose + action * self.policy.action_scale
         self.last_action[:] = action
         for _ in range(DECIMATION):
@@ -436,7 +445,7 @@ def main():
     parser.add_argument("--vy", type=float, default=0.0)
     parser.add_argument("--wz", type=float, default=0.0)
     parser.add_argument("--start", choices=("default", "prone"), default="default")
-    parser.add_argument("--save-csv", type=Path)
+    parser.add_argument("--save-csv", type=Path, help="逐控制步记录观测、动作、指令和躯干位姿")
     args = parser.parse_args()
     if args.standing and args.skill not in LOCOMOTION_SKILLS:
         parser.error("--standing 只能用于行走技能")
@@ -485,7 +494,9 @@ def main():
         csv_writer = csv.writer(csv_stream)
         csv_writer.writerow(["step", "policy", "vx", "vy", "wz"]
                             + [f"obs_{i:02d}" for i in range(OBS_DIM)]
-                            + [f"action_{i:02d}" for i in range(ACTION_DIM)])
+                            + [f"action_{i:02d}" for i in range(ACTION_DIM)]
+                            + ["sim_time_s", "root_x_m", "root_y_m", "root_z_m",
+                               "root_qw", "root_qx", "root_qy", "root_qz"])
     try:
         with TerminalKeys() as keys, mujoco.viewer.launch_passive(
             model, data, show_left_ui=False, show_right_ui=False
@@ -532,7 +543,8 @@ def main():
                 window_steps += 1
                 if csv_writer:
                     csv_writer.writerow([step_count, active_policy.skill, *command,
-                                         *observation.tolist(), *applied_action.tolist()])
+                                         *observation.tolist(), *applied_action.tolist(),
+                                         data.time, *data.qpos[free_adr:free_adr + 7].tolist()])
                 remaining = 1.0 / CONTROL_HZ - (time.perf_counter() - tick)
                 if remaining > 0:
                     time.sleep(remaining)
