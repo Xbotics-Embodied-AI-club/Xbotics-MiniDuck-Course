@@ -3,12 +3,13 @@ __pycache__/
 .venv/
 wandb/
 result/
-checkpoints/
+/checkpoints/*
+!/checkpoints/m05_factory_walk.pt
 *.mp4
 training/export/hostcheck/build/
 *.egg-info/
 .ipynb_checkpoints/
-# 课程配套训练检查点及 notebook 在本地保存的权重。
+# Notebook 在本地保存的训练权重。
 notebooks/**/*.pt
 # 自己训练时 export_policy.py 导出的中间文件
 policies/**/*.onnx

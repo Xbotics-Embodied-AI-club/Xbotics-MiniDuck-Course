@@ -34,7 +34,7 @@ from training.paths import checkpoint_dir, result_dir, run_name
 from training.ppo.data import STEPS_PER_ITERATION
 from training.ppo.network import ActorCritic
 from training.sim import hardware
-from training.sim.env import SEED, DuckEnv, Skill, skill_from_env
+from training.sim.env import SEED, SKILLS, DuckEnv, Skill, skill_from_env
 from training.sim.hardware import Hardware
 
 EVAL_ENVS = 512
@@ -169,6 +169,93 @@ def evaluate(policy: ActorCritic | Policy, skill: Skill, hw: Hardware, common_st
         "episodes": episodes,
         "terms": {k: v / episodes for k, v in sorted(term_sums.items())},
     }
+
+
+def _per_foot_medians(
+    totals: torch.Tensor, counts: torch.Tensor, completed: torch.Tensor, scale: float
+) -> list[float | None]:
+    medians: list[float | None] = []
+    for total, count in zip(totals.unbind(1), counts.unbind(1), strict=True):
+        valid = completed & (count > 0)
+        per_trial = total[valid] / count[valid]
+        medians.append(round(per_trial.quantile(0.5).item() * scale, 2) if per_trial.numel() else None)
+    return medians
+
+
+@torch.inference_mode()
+def evaluate_airtime(
+    policy: ActorCritic | Policy, hw: Hardware, common_step_counter: int, device="cuda:0"
+) -> dict[str, list[float | None]]:
+    """Measure supported swings on flat ground at a fixed forward command.
+
+    Uses 512 identical initial draws for each policy, 0.30 m/s and no pushes. A
+    swing must start and end inside the 10 s tail window, last at least 60 ms,
+    and have the opposite foot on the ground throughout. Only first episodes
+    that complete the window contribute, so a reset cannot masquerade as a step.
+
+    Args:
+        policy: Deterministic policy or training network.
+        hw: Hardware simulated during training.
+        common_step_counter: Curriculum position at the end of training.
+        device: Simulation device.
+
+    Returns:
+        Left then right swing duration (``swing_ms``) and peak foot-site height
+        above ground (``peak_foot_mm``), as medians of per-episode means. A foot
+        with no completed swings has ``None`` for both metrics.
+    """
+    skill = SKILLS["walk"]
+    speed = VIDEO_PINNED_SPEED[skill.name]
+    policy = as_policy(policy, device)
+    torch.manual_seed(SEED)
+    env = DuckEnv(skill, hw, num_envs=EVAL_ENVS, device=device, seed=SEED)
+    try:
+        base = env.unwrapped
+        dt = base.step_dt
+        first_tick, min_ticks = round(10.0 / dt), round(0.06 / dt)
+        robot = base.scene["robot"]
+        feet = base.scene["feet_ground_contact"]
+        foot_ids = base.reward_manager.get_term_cfg("foot_slip").params["asset_cfg"].site_ids
+        ground = base.scene.env_origins[:, 2:3]
+        env.set_curriculum_step(common_step_counter)
+        env.reset()
+        push = base.event_manager.get_term_cfg("push_robot")
+        no_push = dict.fromkeys(push.params["velocity_range"], (0.0, 0.0))
+        push.params["velocity_range"] = no_push
+        env.pin_commands(speed)
+        # The cached observation contains the pinned command only after a step.
+        obs, _, _, done, _ = env.step(torch.zeros(env.num_envs, env.action_dim, device=env.device))
+        active = ~done
+        contact = feet.data.found > 0
+        air = torch.zeros_like(contact, dtype=torch.long)
+        count = torch.zeros_like(air)
+        duration = torch.zeros_like(air)
+        peak = torch.zeros_like(air, dtype=torch.float32)
+        height = torch.zeros_like(peak)
+        for tick in range(2, env.max_episode_length):
+            previous = contact
+            obs, _, _, done, _ = env.step(policy(obs))
+            # Reset may resample commands and overwrite the push curriculum.
+            env.pin_commands(speed)
+            push.params["velocity_range"] = no_push
+            active &= ~done
+            contact = feet.data.found > 0
+            if tick <= first_tick:
+                continue
+            supported = contact.flip(1) & active[:, None]
+            landed = contact & supported & (air >= min_ticks)
+            count += landed
+            duration += air * landed
+            height += peak * landed
+            swinging = ~contact & supported & (previous | (air > 0))
+            air = torch.where(swinging, air + 1, 0)
+            peak = torch.where(swinging, torch.maximum(peak, robot.data.site_pos_w[:, foot_ids, 2] - ground), 0.0)
+        return {
+            "swing_ms": _per_foot_medians(duration, count, active, 1_000 * dt),
+            "peak_foot_mm": _per_foot_medians(height, count, active, 1_000),
+        }
+    finally:
+        env.close()
 
 
 def collect_observations(policy: Policy, skill: Skill, hw: Hardware, common_step_counter: int,

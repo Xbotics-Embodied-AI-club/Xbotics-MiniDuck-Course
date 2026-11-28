@@ -7,7 +7,7 @@
 | --- | --- | --- |
 | `M02-rl-math/` | 建环境、走几步、算回报 | `training.sim` |
 | `M04-train/` | 用仓库里的 PPO 从零训练平地直走：建环境、建网络、`PPOData` 与 `PPO`、写 Trainer、`fit`、评测和录像 | `training.sim`、`training.ppo`、`training.evaluate` |
-| `M05-reward/` | 两组从同一份出厂走路检查点开始，在 M04 的 `course-walk` 续训 300 轮，只切换 `air_time` 权重 | 同上 |
+| `M05-reward/` | 两组从同一份出厂走路检查点开始，在 M04 的 `course-walk` 各续训 300 轮，只切换 `air_time`，录像比较左右脚的腾空时长和抬脚高度 | 同上，加 `evaluate_airtime` |
 | `S02-td-dqn/` | SARSA、Q 学习、DQN（gym 的悬崖行走与倒立摆） | — |
 | `S03-policy-gradient/` | v1 REINFORCE：回报 `reward_to_go`；data 一半 `ReinforceData`、model 一半 `Reinforce` | `RolloutData`、`PolicyModule`（两半的骨架）、`ActorCritic`、`evaluate` / `record_video` |
 | `S04-actor-critic/` | v2 A2C：手写广义优势估计；`A2CData`、`A2C`（加价值损失） | 同上 |
@@ -25,4 +25,4 @@ source .envrc
 MINIDUCK_HARDWARE=2026-11-26-hd1910 MINIDUCK_SKILL=course-walk MINIDUCK_RUN_NAME=m04-walk uv run python -m training.train_ppo
 ```
 
-主线 05 从同一份出厂走路训练检查点开始。请从[配套课程版本的 Release 附件](https://github.com/Xbotics-Embodied-AI-club/Xbotics-MiniDuck-Course/releases)下载 `m05_factory_walk.pt`，放在 `notebooks/M05-reward/` 再运行；notebook 的第一格会校验文件 SHA-256。`policies/` 下的板端 `.mdp` 只供推理，不能代替训练检查点。
+主线 05 的出厂走路训练检查点随仓提供。打开 `notebooks/M05-reward/m05_reward.ipynb`，顺序运行各格即可；它直接读取 [`checkpoints/m05_factory_walk.pt`](../checkpoints/m05_factory_walk.pt)，不用另行下载。`policies/` 下的板端 `.mdp` 只供推理，不能代替训练检查点。

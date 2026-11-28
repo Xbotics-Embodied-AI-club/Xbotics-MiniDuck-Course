@@ -29,10 +29,9 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-# 导入即注册：执行 mjlab_microduck 里所有 register_mjlab_task(...)，之后注册表才认得
-# 下面的 task id。mjlab 导入时也会按 entry point 自动加载它；这里显式导入，
-# 让「任务从哪来」在代码里看得见。
-import mjlab_microduck.tasks  # noqa: F401
+# Task registration prints upstream patch banners; keep failures visible, not successful patch notices.
+with contextlib.redirect_stdout(io.StringIO()) as _registration_output:
+    import mjlab_microduck.tasks  # noqa: F401
 import mujoco
 import numpy as np
 import torch
@@ -55,6 +54,12 @@ from training.sim import getup, servos, terrain, upright
 from training.sim.hardware import Hardware
 
 log = logging.getLogger(__name__)
+for _line in _registration_output.getvalue().splitlines():
+    if _line.startswith("[mdp] Patch") and " active:" in _line:
+        log.debug("%s", _line)
+    else:
+        log.warning("%s", _line)
+del _registration_output
 
 
 @dataclasses.dataclass(frozen=True)
